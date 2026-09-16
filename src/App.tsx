@@ -43,6 +43,8 @@ export function App() {
 
   // Simulation & Stream state
   const [isSimulated, setIsSimulated] = useState<boolean>(false);
+  const [cameraActive, setCameraActive] = useState<boolean>(false);
+  const [fps, setFps] = useState<number>(30);
 
   // 2-Phase Body Scan Workflow
   const [scanPhase, setScanPhase] = useState<ScanPhase>('scanning');
@@ -140,14 +142,14 @@ export function App() {
   return (
     <div className="relative w-screen h-screen bg-[#0A0A0C] text-[#F5F5F7] flex flex-col select-none overflow-hidden font-sans">
       {/* Top Editorial App Bar */}
-      <header className="h-12 border-b border-[#222530] bg-[#0A0A0C]/90 px-3 sm:px-6 flex items-center justify-between z-20 shrink-0 backdrop-blur-sm">
+      <header className="h-12 border-b border-[#222530] bg-[#0A0A0C]/90 px-2.5 sm:px-6 flex items-center justify-between z-20 shrink-0 backdrop-blur-sm gap-2">
         {/* Brandmark */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-baseline gap-1.5">
-            <span className="font-mono text-sm font-bold tracking-widest text-[#F5F5F7]">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <div className="flex items-baseline gap-1">
+            <span className="font-mono text-xs sm:text-sm font-bold tracking-widest text-[#F5F5F7]">
               E-SUOT
             </span>
-            <span className="text-[10px] font-mono text-[#7E8294] tracking-wider hidden sm:inline">
+            <span className="text-[9px] font-mono text-[#7E8294] tracking-wider hidden md:inline">
               // STUDIO FITTING ROOM
             </span>
           </div>
@@ -161,27 +163,27 @@ export function App() {
         {/* Current Garment Pill */}
         <div
           onClick={() => setIsWardrobeOpen(true)}
-          className="bg-[#131418] hover:bg-[#1A1C23] border border-[#222530] hover:border-[#3A3F52] px-3 py-1 rounded text-xs flex items-center gap-2 transition-colors cursor-pointer"
+          className="bg-[#131418] hover:bg-[#1A1C23] border border-[#222530] hover:border-[#3A3F52] px-2 sm:px-3 py-1 rounded text-xs flex items-center gap-1.5 sm:gap-2 transition-colors cursor-pointer shrink-0 max-w-[150px] xs:max-w-[200px] sm:max-w-[280px]"
         >
           <div
-            className="w-2 h-2 rounded-full"
+            className="w-2 h-2 rounded-full shrink-0"
             style={{ backgroundColor: selectedGarment.hex }}
           />
-          <span className="font-medium text-[#F5F5F7] max-w-[110px] sm:max-w-[200px] truncate">
+          <span className="font-medium text-[#F5F5F7] text-[11px] sm:text-xs truncate">
             {selectedGarment.name}
           </span>
-          <span className="font-mono text-[#7E8294] text-[11px]">
+          <span className="font-mono text-[#7E8294] text-[10px] sm:text-[11px] shrink-0">
             [{selectedSize}]
           </span>
         </div>
 
         {/* Right Header Utilities */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
           {/* Snap Clothes Trigger */}
           <button
             onClick={() => setIsScannerModalOpen(true)}
             title="Snap Flat-Lay or Worn Clothes with Camera"
-            className="flex items-center gap-1 text-xs font-mono text-[#F5F5F7] bg-[#131418] hover:bg-[#1A1C23] border border-[#222530] hover:border-[#10B981] px-2 sm:px-2.5 py-1 rounded transition-colors cursor-pointer"
+            className="flex items-center gap-1 text-[11px] font-mono text-[#F5F5F7] bg-[#131418] hover:bg-[#1A1C23] border border-[#222530] hover:border-[#10B981] px-2 py-1 rounded transition-colors cursor-pointer"
           >
             <CameraIcon className="w-3.5 h-3.5 text-[#10B981]" />
             <span className="hidden md:inline">Snap Clothes</span>
@@ -191,7 +193,7 @@ export function App() {
           <button
             onClick={() => userPhotoInputRef.current?.click()}
             title="Try On Garment on Your Uploaded Photo"
-            className="flex items-center gap-1 text-xs font-mono text-[#F5F5F7] bg-[#131418] hover:bg-[#1A1C23] border border-[#222530] px-2 sm:px-2.5 py-1 rounded transition-colors cursor-pointer"
+            className="flex items-center gap-1 text-[11px] font-mono text-[#F5F5F7] bg-[#131418] hover:bg-[#1A1C23] border border-[#222530] px-2 py-1 rounded transition-colors cursor-pointer"
           >
             <ImageIcon className="w-3.5 h-3.5 text-[#3B82F6]" />
             <span className="hidden md:inline">Photo Try-On</span>
@@ -204,25 +206,13 @@ export function App() {
             className="hidden"
           />
 
-          {/* Quick Camera Flip on Mobile Header */}
-          {!userPhotoUrl && (
-            <button
-              onClick={handleToggleFacingMode}
-              title={`Switch to ${facingMode === 'user' ? 'Rear' : 'Front'} Camera`}
-              className="flex items-center gap-1 text-xs font-mono text-[#7E8294] hover:text-[#F5F5F7] bg-[#131418] hover:bg-[#1A1C23] border border-[#222530] px-2 py-1 rounded transition-colors cursor-pointer"
-            >
-              <SwitchCamera className="w-3.5 h-3.5 text-[#E2E8F0]" />
-              <span className="hidden md:inline">{facingMode === 'user' ? 'Front' : 'Rear'}</span>
-            </button>
-          )}
-
-          {/* Fit Advisor Drawer */}
+          {/* Fit Advisor Drawer (Desktop) */}
           <button
             onClick={() => setIsRecommendationOpen(true)}
-            className="hidden sm:flex items-center gap-1.5 text-xs font-mono text-[#F5F5F7] bg-[#131418] hover:bg-[#1A1C23] border border-[#222530] px-2.5 py-1 rounded transition-colors cursor-pointer"
+            className="hidden sm:flex items-center gap-1 text-xs font-mono text-[#F5F5F7] bg-[#131418] hover:bg-[#1A1C23] border border-[#222530] px-2 py-1 rounded transition-colors cursor-pointer"
           >
             <Sparkles className="w-3.5 h-3.5 text-[#10B981]" />
-            <span>Advisor</span>
+            <span className="hidden md:inline">Advisor</span>
           </button>
 
           {/* Legal / Privacy modal */}
@@ -231,7 +221,7 @@ export function App() {
             title="Legal & Biometric Privacy Architecture"
             className="text-[#7E8294] hover:text-[#F5F5F7] p-1.5 rounded hover:bg-[#1A1C23] transition-colors cursor-pointer"
           >
-            <Shield className="w-4 h-4" />
+            <Shield className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </button>
         </div>
       </header>
@@ -255,10 +245,15 @@ export function App() {
           facingMode={facingMode}
           onToggleFacingMode={handleToggleFacingMode}
           userPhotoUrl={userPhotoUrl}
-          onClearUserPhoto={() => setUserPhotoUrl(null)}
+          onClearUserPhoto={() => {
+            setUserPhotoUrl(null);
+            setScanPhase('scanning');
+          }}
           scanPhase={scanPhase}
           onScanPhaseChange={setScanPhase}
           onRescan={handleRescan}
+          onFpsUpdate={setFps}
+          onCameraStatusChange={setCameraActive}
         />
 
         {/* Real-time Dimension HUD Overlay */}
@@ -268,6 +263,16 @@ export function App() {
           unit={unit}
           onToggleUnit={() => setUnit(unit === 'metric' ? 'imperial' : 'metric')}
           onRescan={handleRescan}
+          cameraActive={cameraActive}
+          facingMode={facingMode}
+          onToggleFacingMode={handleToggleFacingMode}
+          fps={fps}
+          userPhotoUrl={userPhotoUrl}
+          onClearUserPhoto={() => {
+            setUserPhotoUrl(null);
+            setScanPhase('scanning');
+          }}
+          onToggleSimulator={setIsSimulated}
         />
 
         {/* Floating Bottom Control Strip */}

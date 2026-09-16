@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import {
   Camera,
   Shirt,
@@ -46,8 +46,8 @@ export const ControlToolbar: React.FC<ControlToolbarProps> = ({
   onOpenLegal
 }) => {
   return (
-    <nav aria-label="Fitting room controls" className="fixed bottom-4 inset-x-0 z-30 flex justify-center px-4 pointer-events-none">
-      <div className="bg-[#131418]/95 border border-[#222530] rounded-md shadow-2xl backdrop-blur-md px-3 py-1.5 flex items-center gap-2 sm:gap-3 pointer-events-auto h-[42px] max-w-full overflow-x-auto">
+    <nav aria-label="Fitting room controls" className="fixed bottom-2.5 sm:bottom-4 inset-x-0 z-30 flex justify-center px-2 sm:px-4 pointer-events-none">
+      <div className="bg-[#131418]/95 border border-[#222530] rounded-md shadow-2xl backdrop-blur-md px-2.5 sm:px-3 py-1 flex items-center gap-1.5 sm:gap-3 pointer-events-auto h-[40px] sm:h-[42px] max-w-[calc(100vw-16px)] overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {/* Wardrobe Drawer Button */}
         <button
           onClick={onOpenWardrobe}

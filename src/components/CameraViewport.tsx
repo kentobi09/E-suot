@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Camera, AlertTriangle, Monitor, SwitchCamera, RotateCcw, Check, Image as ImageIcon } from 'lucide-react';
-import { BodyDimensions, GarmentItem, PoseKeypoints, FitEngineMode, SnapshotData, ScanPhase } from '../lib/types';
+import { BodyDimensions, GarmentItem, PoseKeypoints, FitEngineMode, SnapshotData, ScanPhase, LandmarkPoint } from '../lib/types';
 import { poseEngine } from '../lib/poseDetector';
 import { garmentFitter } from '../lib/garmentFitter';
 
@@ -24,6 +24,8 @@ interface CameraViewportProps {
   scanPhase: ScanPhase;
   onScanPhaseChange: (phase: ScanPhase) => void;
   onRescan: () => void;
+  onFpsUpdate?: (fps: number) => void;
+  onCameraStatusChange?: (active: boolean) => void;
 }
 
 export const CameraViewport: React.FC<CameraViewportProps> = ({
@@ -45,7 +47,9 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
   onClearUserPhoto,
   scanPhase,
   onScanPhaseChange,
-  onRescan
+  onRescan,
+  onFpsUpdate,
+  onCameraStatusChange
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -137,15 +141,18 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
         videoRef.current.onloadedmetadata = () => {
           videoRef.current?.play();
           setCameraActive(true);
+          onCameraStatusChange?.(true);
           onToggleSimulator(false);
         };
       }
     } catch (err: any) {
       console.warn('Webcam stream unavailable or access denied:', err);
       setCameraError(err.message || 'Camera permission denied or camera device in use.');
+      setCameraActive(false);
+      onCameraStatusChange?.(false);
       onToggleSimulator(true);
     }
-  }, [facingMode, onToggleSimulator]);
+  }, [facingMode, onToggleSimulator, onCameraStatusChange]);
 
   // Stop Webcam
   const stopWebcam = useCallback(() => {
@@ -154,8 +161,9 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
       stream.getTracks().forEach((track) => track.stop());
       videoRef.current.srcObject = null;
       setCameraActive(false);
+      onCameraStatusChange?.(false);
     }
-  }, []);
+  }, [onCameraStatusChange]);
 
   // Handle stream lifecycle when mode or lens changes
   useEffect(() => {
@@ -205,6 +213,7 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
       frameCountRef.current++;
       if (time - lastFpsCheckRef.current >= 1000) {
         setFps(frameCountRef.current);
+        onFpsUpdate?.(frameCountRef.current);
         frameCountRef.current = 0;
         lastFpsCheckRef.current = time;
       }
@@ -266,16 +275,31 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
         const det = poseEngine.detect(video, time);
         if (det.keypoints) {
           if (isSelfie) {
+            const flip = (pt?: LandmarkPoint): LandmarkPoint | undefined => {
+              if (!pt) return undefined;
+              return { ...pt, x: 1 - pt.x };
+            };
+
             const mirroredKeypoints: PoseKeypoints = {
               ...det.keypoints,
-              leftShoulder: { ...det.keypoints.rightShoulder, x: 1 - det.keypoints.rightShoulder.x },
-              rightShoulder: { ...det.keypoints.leftShoulder, x: 1 - det.keypoints.leftShoulder.x },
-              leftHip: { ...det.keypoints.rightHip, x: 1 - det.keypoints.rightHip.x },
-              rightHip: { ...det.keypoints.leftHip, x: 1 - det.keypoints.leftHip.x },
-              neckBase: { ...det.keypoints.neckBase, x: 1 - det.keypoints.neckBase.x },
-              midHip: { ...det.keypoints.midHip, x: 1 - det.keypoints.midHip.x },
-              chestMid: { ...det.keypoints.chestMid, x: 1 - det.keypoints.chestMid.x },
-              shoulderSlopeRad: -det.keypoints.shoulderSlopeRad
+              nose: flip(det.keypoints.nose),
+              leftEye: flip(det.keypoints.leftEye),
+              rightEye: flip(det.keypoints.rightEye),
+              leftEar: flip(det.keypoints.leftEar),
+              rightEar: flip(det.keypoints.rightEar),
+              leftShoulder: flip(det.keypoints.leftShoulder)!,
+              rightShoulder: flip(det.keypoints.rightShoulder)!,
+              leftElbow: flip(det.keypoints.leftElbow),
+              rightElbow: flip(det.keypoints.rightElbow),
+              leftWrist: flip(det.keypoints.leftWrist),
+              rightWrist: flip(det.keypoints.rightWrist),
+              leftHip: flip(det.keypoints.leftHip)!,
+              rightHip: flip(det.keypoints.rightHip)!,
+              neckBase: flip(det.keypoints.neckBase)!,
+              midHip: flip(det.keypoints.midHip)!,
+              chestMid: flip(det.keypoints.chestMid)!,
+              shoulderSlopeRad: -det.keypoints.shoulderSlopeRad,
+              bodyRotationY: -det.keypoints.bodyRotationY
             };
             currentKeypoints = mirroredKeypoints;
           } else {
@@ -413,8 +437,10 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
           const scanRange = Math.max(80, torsoBottom - torsoTop);
           const scanY = torsoTop + ((Math.sin(time / 450) + 1) / 2) * scanRange;
 
-          const leftX = (currentKeypoints.leftShoulder.x - 0.08) * cw;
-          const rightX = (currentKeypoints.rightShoulder.x + 0.08) * cw;
+          const minShX = Math.min(currentKeypoints.leftShoulder.x, currentKeypoints.rightShoulder.x);
+          const maxShX = Math.max(currentKeypoints.leftShoulder.x, currentKeypoints.rightShoulder.x);
+          const leftX = (minShX - 0.08) * cw;
+          const rightX = (maxShX + 0.08) * cw;
 
           // Glowing laser sweep line
           ctx.strokeStyle = '#10B981';
@@ -575,100 +601,6 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
         ref={canvasRef}
         className="w-full h-full object-contain max-w-full max-h-full"
       />
-
-      {/* Camera and Feed Status Badge (Top-Left) */}
-      <div className="absolute top-4 left-4 z-20 flex items-center gap-2 flex-wrap">
-        <div className="bg-[#131418]/90 border border-[#222530] px-3 py-1.5 rounded flex items-center gap-2 backdrop-blur-sm text-[11px] font-mono">
-          <span
-            className={`w-1.5 h-1.5 rounded-full ${
-              userPhotoUrl
-                ? 'bg-[#3B82F6]'
-                : cameraActive
-                ? 'bg-[#10B981]'
-                : isSimulated
-                ? 'bg-[#E2E8F0]'
-                : 'bg-[#EF4444]'
-            }`}
-          />
-          <span className="text-[#F5F5F7] tracking-wider uppercase font-semibold">
-            {userPhotoUrl
-              ? 'PHOTO TRY-ON'
-              : cameraActive
-              ? `CAM: ${facingMode === 'user' ? 'FRONT' : 'REAR'}`
-              : isSimulated
-              ? 'SIMULATOR'
-              : 'OFFLINE'}
-          </span>
-          <span className="text-[#3A3F52]">|</span>
-          <span className="text-[#7E8294] tabular-nums">FPS: {fps}</span>
-        </div>
-
-        {/* Rescan / Recalibrate Trigger */}
-        {scanPhase === 'locked' && !userPhotoUrl && (
-          <button
-            onClick={() => {
-              stableFramesRef.current = 0;
-              onRescan();
-            }}
-            title="Rescan Body Geometry"
-            className="bg-[#131418]/90 hover:bg-[#1A1C23] border border-[#222530] hover:border-[#10B981] px-2.5 py-1.5 rounded text-[11px] font-mono text-[#F5F5F7] flex items-center gap-1.5 backdrop-blur-sm transition-colors cursor-pointer"
-          >
-            <RotateCcw className="w-3.5 h-3.5 text-[#10B981]" />
-            <span>Rescan Body</span>
-          </button>
-        )}
-
-        {/* Exit Photo Try-On Mode */}
-        {userPhotoUrl && onClearUserPhoto && (
-          <button
-            onClick={onClearUserPhoto}
-            title="Switch back to live webcam"
-            className="bg-[#131418]/90 hover:bg-[#1A1C23] border border-[#3B82F6]/50 px-2.5 py-1.5 rounded text-[11px] font-mono text-[#F5F5F7] flex items-center gap-1.5 backdrop-blur-sm transition-colors cursor-pointer"
-          >
-            <Camera className="w-3.5 h-3.5 text-[#3B82F6]" />
-            <span>Live Camera</span>
-          </button>
-        )}
-
-        {/* Camera Lens Flip Button */}
-        {!isSimulated && !userPhotoUrl && cameraActive && onToggleFacingMode && (
-          <button
-            onClick={onToggleFacingMode}
-            title="Switch Front/Rear Camera"
-            className="bg-[#131418]/90 hover:bg-[#1A1C23] border border-[#222530] hover:border-[#3A3F52] px-2.5 py-1.5 rounded text-[11px] font-mono text-[#F5F5F7] flex items-center gap-1.5 backdrop-blur-sm transition-colors cursor-pointer"
-          >
-            <SwitchCamera className="w-3.5 h-3.5 text-[#E2E8F0]" />
-            <span className="hidden sm:inline">Flip Lens</span>
-          </button>
-        )}
-
-        {/* Simulator / Camera Mode Toggle Button */}
-        {!userPhotoUrl && (
-          <button
-            onClick={() => {
-              if (isSimulated) {
-                startWebcam();
-              } else {
-                stopWebcam();
-                onToggleSimulator(true);
-              }
-            }}
-            className="bg-[#131418]/90 hover:bg-[#1A1C23] border border-[#222530] hover:border-[#3A3F52] px-2.5 py-1.5 rounded text-[11px] font-mono text-[#F5F5F7] flex items-center gap-1.5 backdrop-blur-sm transition-colors cursor-pointer"
-          >
-            {isSimulated ? (
-              <>
-                <Camera className="w-3.5 h-3.5 text-[#10B981]" />
-                <span className="hidden sm:inline">Live Camera</span>
-              </>
-            ) : (
-              <>
-                <Monitor className="w-3.5 h-3.5 text-[#E2E8F0]" />
-                <span className="hidden sm:inline">Simulator</span>
-              </>
-            )}
-          </button>
-        )}
-      </div>
 
       {/* Camera Access Error Prompt Banner */}
       {cameraError && !isSimulated && !userPhotoUrl && (

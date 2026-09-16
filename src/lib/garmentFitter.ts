@@ -1,4 +1,4 @@
-﻿import { PoseKeypoints, GarmentItem, FitEngineMode } from './types';
+import { PoseKeypoints, GarmentItem, FitEngineMode } from './types';
 
 export interface GarmentRenderOptions {
   opacity: number; // 0.0 to 1.0
@@ -112,6 +112,9 @@ export class GarmentFitter {
   /**
    * Mode 1: Quick Fit (2D Affine transform scaling & rotating to shoulders)
    */
+  /**
+   * Mode 1: Quick Fit (2D Affine transform scaling & rotating to shoulders)
+   */
   private renderQuickAffine(
     ctx: CanvasRenderingContext2D,
     canvasWidth: number,
@@ -121,13 +124,26 @@ export class GarmentFitter {
     imageSource: HTMLImageElement | HTMLCanvasElement,
     options: GarmentRenderOptions
   ) {
+    // Determine screen-left and screen-right shoulders to guarantee dx >= 0
+    const shLeft = kp.leftShoulder.x <= kp.rightShoulder.x ? kp.leftShoulder : kp.rightShoulder;
+    const shRight = kp.leftShoulder.x > kp.rightShoulder.x ? kp.leftShoulder : kp.rightShoulder;
+
+    const shLeftX = shLeft.x * canvasWidth;
+    const shLeftY = shLeft.y * canvasHeight;
+    const shRightX = shRight.x * canvasWidth;
+    const shRightY = shRight.y * canvasHeight;
+
+    const dx = shRightX - shLeftX;
+    const dy = shRightY - shLeftY;
+    const shoulderSpan = Math.hypot(dx, dy);
+
+    // Natural shoulder line tilt (guaranteed in [-35deg, +35deg] to prevent unnatural flipping)
+    const rawAngle = Math.atan2(dy, dx);
+    const maxTilt = (35 * Math.PI) / 180;
+    const angle = Math.max(-maxTilt, Math.min(maxTilt, rawAngle));
+
     const neckX = kp.neckBase.x * canvasWidth;
     const neckY = (kp.neckBase.y + garment.offsetYFactor) * canvasHeight;
-
-    const dx = (kp.rightShoulder.x - kp.leftShoulder.x) * canvasWidth;
-    const dy = (kp.rightShoulder.y - kp.leftShoulder.y) * canvasHeight;
-    const shoulderSpan = Math.hypot(dx, dy);
-    const angle = Math.atan2(dy, dx);
 
     // Garment dimensions based on physical shoulder span and scaling multiplier
     const garmentWidth = shoulderSpan * 1.95 * garment.scaleFactor * options.sizeMultiplier;
@@ -179,19 +195,28 @@ export class GarmentFitter {
     imageSource: HTMLImageElement | HTMLCanvasElement,
     options: GarmentRenderOptions
   ) {
-    // 4 vertical slice strips across the garment to deform with shoulder curvature
     const slices = 8;
-    const leftShoulderX = kp.leftShoulder.x * canvasWidth;
-    const leftShoulderY = kp.leftShoulder.y * canvasHeight;
-    const rightShoulderX = kp.rightShoulder.x * canvasWidth;
-    const rightShoulderY = kp.rightShoulder.y * canvasHeight;
+
+    // Determine screen-left and screen-right shoulders to guarantee dx >= 0
+    const shLeft = kp.leftShoulder.x <= kp.rightShoulder.x ? kp.leftShoulder : kp.rightShoulder;
+    const shRight = kp.leftShoulder.x > kp.rightShoulder.x ? kp.leftShoulder : kp.rightShoulder;
+
+    const shLeftX = shLeft.x * canvasWidth;
+    const shLeftY = shLeft.y * canvasHeight;
+    const shRightX = shRight.x * canvasWidth;
+    const shRightY = shRight.y * canvasHeight;
+
+    const dx = shRightX - shLeftX;
+    const dy = shRightY - shLeftY;
+    const shoulderSpan = Math.hypot(dx, dy);
+
+    // Natural shoulder line tilt (guaranteed in [-35deg, +35deg] to prevent unnatural flipping)
+    const rawAngle = Math.atan2(dy, dx);
+    const maxTilt = (35 * Math.PI) / 180;
+    const angle = Math.max(-maxTilt, Math.min(maxTilt, rawAngle));
+
     const neckX = kp.neckBase.x * canvasWidth;
     const neckY = (kp.neckBase.y + garment.offsetYFactor) * canvasHeight;
-    const hipX = kp.midHip.x * canvasWidth;
-    const hipY = kp.midHip.y * canvasHeight;
-
-    const shoulderSpan = Math.hypot(rightShoulderX - leftShoulderX, rightShoulderY - leftShoulderY);
-    const angle = Math.atan2(rightShoulderY - leftShoulderY, rightShoulderX - leftShoulderX);
 
     const garmentWidth = shoulderSpan * 1.98 * garment.scaleFactor * options.sizeMultiplier;
     const garmentHeight = garmentWidth / garment.aspectRatio;
