@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --canvas-root: #0A0A0C;
+    --surface-overlay: #131418;
+    --surface-raised: #1A1C23;
+    --hairline: #222530;
+    --hairline-focus: #3A3F52;
+    --text-primary: #F5F5F7;
+    --text-muted: #7E8294;
+    --text-dim: #4B4F60;
+    --accent-calibration: #E2E8F0;
+    --status-active: #10B981;
+    --status-warning: #F59E0B;
+    --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+    --font-sans: "Geist", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  body {
+    background-color: var(--canvas-root);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    user-select: none;
+  }
+
+  /* Monospace tabular numbers for measurement telemetry */
+  .tabular-nums {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Custom scrollbar for editorial drawers */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: #0A0A0C;
+}
+::-webkit-scrollbar-thumb {
+  background: #222530;
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3A3F52;
+}
+

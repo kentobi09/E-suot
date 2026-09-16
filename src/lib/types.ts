@@ -1,0 +1,99 @@
+﻿export interface LandmarkPoint {
+  x: number;
+  y: number;
+  z?: number;
+  visibility?: number;
+}
+
+export interface PoseKeypoints {
+  nose?: LandmarkPoint;
+  leftEye?: LandmarkPoint;
+  rightEye?: LandmarkPoint;
+  leftEar?: LandmarkPoint;
+  rightEar?: LandmarkPoint;
+  leftShoulder: LandmarkPoint;
+  rightShoulder: LandmarkPoint;
+  leftElbow?: LandmarkPoint;
+  rightElbow?: LandmarkPoint;
+  leftWrist?: LandmarkPoint;
+  rightWrist?: LandmarkPoint;
+  leftHip: LandmarkPoint;
+  rightHip: LandmarkPoint;
+  
+  // Computed body landmarks
+  neckBase: LandmarkPoint;
+  midHip: LandmarkPoint;
+  chestMid: LandmarkPoint;
+  
+  // Geometric metrics in normalized [0, 1] screen space
+  shoulderWidthNorm: number;
+  torsoHeightNorm: number;
+  shoulderSlopeRad: number;
+  torsoAngleRad: number;
+  bodyRotationY: number; // yaw approximation
+  confidence: number;
+}
+
+export interface BodyDimensions {
+  shoulderWidthCm: number;
+  torsoLengthCm: number;
+  chestCircumferenceCm: number;
+  shoulderWidthIn: number;
+  torsoLengthIn: number;
+  chestCircumferenceIn: number;
+  distanceEstimateM: number;
+  alignmentScore: number;
+  isAligned: boolean;
+  confidence: number;
+}
+
+export interface GarmentSizeSpec {
+  chestCm: number;
+  shoulderCm: number;
+  lengthCm: number;
+}
+
+export interface GarmentItem {
+  id: string;
+  name: string;
+  category: string;
+  editorialCode: string;
+  brand: string;
+  colorName: string;
+  hex: string;
+  description: string;
+  fabricSpec: string;
+  silhouette: 'Tailored' | 'Regular' | 'Boxy / Dropped' | 'Relaxed';
+  imageUrl: string;
+  aspectRatio: number; // width / height
+  anchorPointRatio: { x: number; y: number }; // Relative collar center [0.5, 0.12]
+  scaleFactor: number;
+  offsetYFactor: number;
+  sizeChart: Record<string, GarmentSizeSpec>;
+  availableSizes: string[];
+  defaultSize: string;
+}
+
+export type FitEngineMode = 'quick' | 'mesh';
+export type SilhouettePreference = 'tailored' | 'regular' | 'oversized';
+
+export interface FitRecommendation {
+  recommendedSize: string;
+  alternativeSize?: string;
+  silhouetteStyle: SilhouettePreference;
+  matchScore: number; // 0-100
+  shoulderDeltaCm: number;
+  chestDeltaCm: number;
+  lengthDeltaCm: number;
+  status: 'Snug' | 'True Fit' | 'Generous' | 'Oversized';
+  editorialNotes: string[];
+}
+
+export interface SnapshotData {
+  dataUrl: string;
+  timestamp: string;
+  dimensions: BodyDimensions;
+  garment: GarmentItem;
+  size: string;
+  fitEngine: FitEngineMode;
+}
