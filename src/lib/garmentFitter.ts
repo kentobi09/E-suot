@@ -151,7 +151,15 @@ export class GarmentFitter {
     // Garment dimensions based on physical shoulder-to-shoulder seam ratio
     const shoulderRatio = garment.shoulderSpanRatio || 0.68;
     const garmentWidth = (shoulderSpan / shoulderRatio) * (garment.scaleFactor || 1.0) * options.sizeMultiplier;
-    const garmentHeight = garmentWidth / garment.aspectRatio;
+
+    // Anatomical torso distance from suprasternal notch to mid-hip line
+    const neckToHipSpan = Math.hypot(
+      (kp.midHip.x - kp.neckBase.x) * canvasWidth,
+      (kp.midHip.y - kp.neckBase.y) * canvasHeight
+    );
+    const baseAspectHeight = garmentWidth / garment.aspectRatio;
+    const anatomicalTorsoHeight = neckToHipSpan * 1.25 * options.sizeMultiplier;
+    const garmentHeight = Math.max(baseAspectHeight, anatomicalTorsoHeight);
 
     const anchorRelX = garment.anchorPointRatio.x;
     const anchorRelY = garment.anchorPointRatio.y;
@@ -234,7 +242,15 @@ export class GarmentFitter {
     // Garment dimensions based on physical shoulder-to-shoulder seam ratio
     const shoulderRatio = garment.shoulderSpanRatio || 0.68;
     const garmentWidth = (shoulderSpan / shoulderRatio) * (garment.scaleFactor || 1.0) * options.sizeMultiplier;
-    const garmentHeight = garmentWidth / garment.aspectRatio;
+
+    // Anatomical torso distance from suprasternal notch to mid-hip line
+    const neckToHipSpan = Math.hypot(
+      (kp.midHip.x - kp.neckBase.x) * canvasWidth,
+      (kp.midHip.y - kp.neckBase.y) * canvasHeight
+    );
+    const baseAspectHeight = garmentWidth / garment.aspectRatio;
+    const anatomicalTorsoHeight = neckToHipSpan * 1.25 * options.sizeMultiplier;
+    const garmentHeight = Math.max(baseAspectHeight, anatomicalTorsoHeight);
 
     const sourceW = (imageSource as HTMLImageElement).naturalWidth || imageSource.width;
     const sourceH = (imageSource as HTMLImageElement).naturalHeight || imageSource.height;

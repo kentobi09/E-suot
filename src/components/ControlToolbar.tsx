@@ -60,27 +60,14 @@ export const ControlToolbar: React.FC<ControlToolbarProps> = ({
 
         <div className="w-[1px] h-4 bg-[#222530] shrink-0" />
 
-        {/* Size Selector */}
-        <div className="flex items-center gap-1 shrink-0">
-          <span className="text-[10px] font-mono text-[#7E8294] uppercase mr-1 hidden sm:inline">
-            SIZE:
+        {/* Auto-Detected Size Badge */}
+        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#16171E] border border-[#272B38] rounded shrink-0" title={`Automatically detected size ${selectedSize} based on your real-time body dimensions`}>
+          <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse" />
+          <span className="text-[10px] font-mono text-[#7E8294] uppercase">SIZE:</span>
+          <span className="text-[11px] font-mono font-bold text-[#F5F5F7] tracking-wider">{selectedSize}</span>
+          <span className="text-[8px] font-mono text-[#10B981] uppercase px-1 py-0.5 bg-[#10B981]/15 rounded font-semibold">
+            AUTO
           </span>
-          {availableSizes.map((sz) => {
-            const isActive = selectedSize === sz;
-            return (
-              <button
-                key={sz}
-                onClick={() => onSizeChange(sz)}
-                className={`w-6 h-6 rounded text-[10px] font-mono font-medium transition-colors cursor-pointer flex items-center justify-center ${
-                  isActive
-                    ? 'bg-[#E2E8F0] text-[#0A0A0C] font-bold'
-                    : 'text-[#7E8294] hover:text-[#F5F5F7] hover:bg-[#1A1C23]'
-                }`}
-              >
-                {sz}
-              </button>
-            );
-          })}
         </div>
 
         <div className="w-[1px] h-4 bg-[#222530] shrink-0" />

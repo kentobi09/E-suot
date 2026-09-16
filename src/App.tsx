@@ -23,6 +23,7 @@ import { RecommendationDrawer } from './components/RecommendationDrawer';
 import { LegalModal } from './components/LegalModal';
 import { SnapshotModal } from './components/SnapshotModal';
 import { GarmentScannerModal } from './components/GarmentScannerModal';
+import { computeFitRecommendation } from './lib/recommendations';
 
 export function App() {
   // Garment state
@@ -82,12 +83,21 @@ export function App() {
   // Callbacks
   const handleDimensionsUpdate = useCallback((dims: BodyDimensions) => {
     setDimensions(dims);
-  }, []);
+
+    // Automatically detect and update size based on real-time body measurements
+    if (dims.confidence > 0.45 && dims.shoulderWidthCm > 32) {
+      const rec = computeFitRecommendation(dims, selectedGarment, silhouettePreference);
+      if (rec.recommendedSize && rec.recommendedSize !== selectedSize) {
+        setSelectedSize(rec.recommendedSize);
+      }
+    }
+  }, [selectedGarment, silhouettePreference, selectedSize]);
 
   const handleSelectGarment = (garment: GarmentItem) => {
     setSelectedGarment(garment);
     setCustomGarmentCanvas(null);
-    setSelectedSize(garment.defaultSize);
+    const rec = computeFitRecommendation(dimensions, garment, silhouettePreference);
+    setSelectedSize(rec.recommendedSize || garment.defaultSize);
   };
 
   const handleCustomGarmentLoaded = (
@@ -96,7 +106,8 @@ export function App() {
   ) => {
     setSelectedGarment(garment);
     setCustomGarmentCanvas(canvas);
-    setSelectedSize(garment.defaultSize);
+    const rec = computeFitRecommendation(dimensions, garment, silhouettePreference);
+    setSelectedSize(rec.recommendedSize || garment.defaultSize);
   };
 
   const handleGarmentDigitized = (
@@ -105,7 +116,8 @@ export function App() {
   ) => {
     setSelectedGarment(garment);
     setCustomGarmentCanvas(canvas);
-    setSelectedSize(garment.defaultSize);
+    const rec = computeFitRecommendation(dimensions, garment, silhouettePreference);
+    setSelectedSize(rec.recommendedSize || garment.defaultSize);
   };
 
   const handleTakeSnapshot = () => {
