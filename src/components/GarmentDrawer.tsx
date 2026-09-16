@@ -29,6 +29,7 @@ export const GarmentDrawer: React.FC<GarmentDrawerProps> = ({
   const [isProcessingCutout, setIsProcessingCutout] = useState(false);
   const [activeTab, setActiveTab] = useState<'wardrobe' | 'upload' | 'refine'>('wardrobe');
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'tops' | 'bottoms'>('all');
+  const [importCategory, setImportCategory] = useState<'tops' | 'bottoms'>('tops');
   const [rawUploadedImage, setRawUploadedImage] = useState<HTMLImageElement | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -98,20 +99,51 @@ export const GarmentDrawer: React.FC<GarmentDrawerProps> = ({
     setTimeout(() => {
       try {
         const cutoutCanvas = garmentFitter.processBackgroundRemoval(img, bgThreshold, featherEdges);
+
+        // Extract dominant/average color from non-transparent cutout pixels
+        let extractedHex = '#8E8E93';
+        try {
+          const ctx = cutoutCanvas.getContext('2d');
+          if (ctx) {
+            const imgData = ctx.getImageData(0, 0, cutoutCanvas.width, cutoutCanvas.height);
+            const d = imgData.data;
+            let rSum = 0, gSum = 0, bSum = 0, validPixels = 0;
+            const step = Math.max(1, Math.floor(d.length / 40000)) * 4;
+            for (let i = 0; i < d.length; i += step) {
+              const a = d[i + 3];
+              if (a > 60) {
+                rSum += d[i];
+                gSum += d[i + 1];
+                bSum += d[i + 2];
+                validPixels++;
+              }
+            }
+            if (validPixels > 0) {
+              const avgR = Math.round(rSum / validPixels);
+              const avgG = Math.round(gSum / validPixels);
+              const avgB = Math.round(bSum / validPixels);
+              extractedHex = `#${avgR.toString(16).padStart(2, '0')}${avgG.toString(16).padStart(2, '0')}${avgB.toString(16).padStart(2, '0')}`;
+            }
+          }
+        } catch (e) {
+          console.warn('Color extraction fallback:', e);
+        }
+
+        const isBottom = importCategory === 'bottoms';
         const customGarment: GarmentItem = {
           id: `custom-${Date.now()}`,
           name: name,
-          category: 'Custom Import',
+          category: isBottom ? 'bottoms' : 'tops',
           editorialCode: `CST-${Math.floor(100 + Math.random() * 900)}`,
           brand: 'USER ATELIER',
-          colorName: 'Custom Texture',
-          hex: '#8E8E93',
-          description: 'Client-ingested garment cut out via threshold isolation.',
-          fabricSpec: 'Dynamic Source',
+          colorName: `${isBottom ? 'Custom Pants' : 'Custom Top'} (${extractedHex.toUpperCase()})`,
+          hex: extractedHex,
+          description: `Client-ingested 3D ${isBottom ? 'bottoms' : 'top'} cut out via threshold isolation.`,
+          fabricSpec: 'Dynamic 3D Source',
           silhouette: 'Regular',
           imageUrl: cutoutCanvas.toDataURL('image/png'),
           aspectRatio: cutoutCanvas.width / cutoutCanvas.height,
-          anchorPointRatio: { x: 0.5, y: 0.12 },
+          anchorPointRatio: { x: 0.5, y: isBottom ? 0.05 : 0.12 },
           shoulderSpanRatio: 0.65,
           scaleFactor: 1.0,
           offsetYFactor: 0.0,
@@ -308,6 +340,35 @@ export const GarmentDrawer: React.FC<GarmentDrawerProps> = ({
         {/* Tab 2: URL & Upload */}
         {activeTab === 'upload' && (
           <div className="space-y-6">
+            {/* Garment Classification Switcher */}
+            <div className="p-3 bg-[#131418] border border-[#222530] rounded-md flex items-center justify-between">
+              <span className="text-[11px] font-mono text-[#7E8294] uppercase tracking-wider">Garment Category:</span>
+              <div className="flex gap-1.5 bg-[#0A0A0C] p-1 rounded border border-[#222530]">
+                <button
+                  type="button"
+                  onClick={() => setImportCategory('tops')}
+                  className={`px-3 py-1 text-[10px] font-mono uppercase tracking-wider rounded transition-all cursor-pointer ${
+                    importCategory === 'tops'
+                      ? 'bg-[#E2E8F0] text-[#0A0A0C] font-semibold'
+                      : 'text-[#7E8294] hover:text-[#F5F5F7]'
+                  }`}
+                >
+                  Tops / Shirts
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImportCategory('bottoms')}
+                  className={`px-3 py-1 text-[10px] font-mono uppercase tracking-wider rounded transition-all cursor-pointer ${
+                    importCategory === 'bottoms'
+                      ? 'bg-[#E2E8F0] text-[#0A0A0C] font-semibold'
+                      : 'text-[#7E8294] hover:text-[#F5F5F7]'
+                  }`}
+                >
+                  Pants / Bottoms
+                </button>
+              </div>
+            </div>
+
             {/* Camera Snap Card */}
             <div className="p-4 bg-[#0A0A0C] border border-[#222530] rounded-md space-y-2.5">
               <div className="text-[11px] font-mono text-[#E2E8F0] font-semibold flex items-center gap-2">
