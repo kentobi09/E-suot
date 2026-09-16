@@ -19,6 +19,10 @@ export interface PoseKeypoints {
   rightWrist?: LandmarkPoint;
   leftHip: LandmarkPoint;
   rightHip: LandmarkPoint;
+  leftKnee?: LandmarkPoint;
+  rightKnee?: LandmarkPoint;
+  leftAnkle?: LandmarkPoint;
+  rightAnkle?: LandmarkPoint;
   
   // Computed body landmarks
   neckBase: LandmarkPoint;
@@ -32,6 +36,13 @@ export interface PoseKeypoints {
   torsoAngleRad: number;
   bodyRotationY: number; // yaw approximation
   confidence: number;
+}
+
+export interface EnvironmentalLighting {
+  luminance: number; // 0.0 (dark) to 1.0 (bright)
+  r: number;         // Normalized red chromaticity [0, 1]
+  g: number;         // Normalized green chromaticity [0, 1]
+  b: number;         // Normalized blue chromaticity [0, 1]
 }
 
 export type ScanPhase = 'scanning' | 'locked';
@@ -87,6 +98,7 @@ export interface GarmentRenderOptions {
   sizeMultiplier: number; // 0.9 (S) to 1.15 (XXL)
   fitEngine: FitEngineMode;
   showLandmarks: boolean;
+  environmentalLighting?: EnvironmentalLighting;
 }
 
 export type SilhouettePreference = 'tailored' | 'regular' | 'oversized';

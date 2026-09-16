@@ -182,5 +182,89 @@ export const GARMENT_PRESETS: GarmentItem[] = [
       L: { chestCm: 120, shoulderCm: 51.0, lengthCm: 75 },
       XL: { chestCm: 126, shoulderCm: 53.0, lengthCm: 77 }
     }
+  },
+  {
+    id: 'pleated-tailored-trousers',
+    name: '04 / Pleated Tailored Trousers',
+    category: 'bottoms',
+    editorialCode: 'ESU-04-TRS',
+    brand: 'STUDIO E-SUOT',
+    colorName: 'Charcoal Black Melange',
+    hex: '#1E2026',
+    description: 'Double-pleated tailored trousers with extended waistband tab, pressed central creases, and relaxed straight leg drape.',
+    fabricSpec: '100% High-Twist Tropical Wool • 260 GSM',
+    silhouette: 'Tailored',
+    imageUrl: `data:image/svg+xml;utf8,${encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 800" width="500" height="800">
+  <defs>
+    <linearGradient id="trouserGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#242730" />
+      <stop offset="50%" stop-color="#1B1D24" />
+      <stop offset="100%" stop-color="#14161B" />
+    </linearGradient>
+  </defs>
+  <path d="M 120 40 L 380 40 L 390 140 L 400 760 L 270 760 L 250 250 L 230 760 L 100 760 L 110 140 Z" fill="url(#trouserGrad)" stroke="#373B47" stroke-width="2"/>
+  <rect x="120" y="40" width="260" height="40" fill="#20232B" stroke="#3D4250" stroke-width="1.5"/>
+  <line x1="185" y1="80" x2="185" y2="760" stroke="#3D4250" stroke-width="1.2" stroke-dasharray="4,2"/>
+  <line x1="315" y1="80" x2="315" y2="760" stroke="#3D4250" stroke-width="1.2" stroke-dasharray="4,2"/>
+  <line x1="250" y1="80" x2="250" y2="250" stroke="#373B47" stroke-width="1.5"/>
+</svg>
+`)}`,
+    aspectRatio: 500 / 800,
+    anchorPointRatio: { x: 0.5, y: 0.05 },
+    shoulderSpanRatio: 0.85,
+    scaleFactor: 1.0,
+    offsetYFactor: 0.0,
+    availableSizes: ['S', 'M', 'L', 'XL'],
+    defaultSize: 'M',
+    sizeChart: {
+      S: { chestCm: 76, shoulderCm: 40.0, lengthCm: 102 },
+      M: { chestCm: 82, shoulderCm: 42.0, lengthCm: 104 },
+      L: { chestCm: 88, shoulderCm: 44.0, lengthCm: 106 },
+      XL: { chestCm: 94, shoulderCm: 46.0, lengthCm: 108 }
+    }
+  },
+  {
+    id: 'washed-straight-denim',
+    name: '05 / Washed Selvedge Denim',
+    category: 'bottoms',
+    editorialCode: 'ESU-05-DNM',
+    brand: 'STUDIO E-SUOT',
+    colorName: 'Vintage Washed Indigo',
+    hex: '#2B3D59',
+    description: '14oz rigid Japanese selvedge denim. Mid-rise, classic 5-pocket construction, tobacco stitching, straight leg.',
+    fabricSpec: '100% Selvedge Ring-Spun Cotton • 14 OZ',
+    silhouette: 'Regular',
+    imageUrl: `data:image/svg+xml;utf8,${encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 800" width="500" height="800">
+  <defs>
+    <linearGradient id="denimGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#344A6C" />
+      <stop offset="50%" stop-color="#283A56" />
+      <stop offset="100%" stop-color="#1C293E" />
+    </linearGradient>
+  </defs>
+  <path d="M 125 40 L 375 40 L 388 135 L 395 760 L 272 760 L 250 240 L 228 760 L 105 760 L 112 135 Z" fill="url(#denimGrad)" stroke="#B87333" stroke-width="1.8"/>
+  <rect x="125" y="40" width="250" height="38" fill="#25354E" stroke="#B87333" stroke-width="1.5"/>
+  <path d="M 140 78 C 170 80, 190 120, 185 145" fill="none" stroke="#B87333" stroke-width="1.2"/>
+  <path d="M 360 78 C 330 80, 310 120, 315 145" fill="none" stroke="#B87333" stroke-width="1.2"/>
+  <line x1="250" y1="78" x2="250" y2="240" stroke="#B87333" stroke-width="1.5"/>
+  <line x1="228" y1="760" x2="105" y2="760" stroke="#B87333" stroke-width="2.5"/>
+  <line x1="395" y1="760" x2="272" y2="760" stroke="#B87333" stroke-width="2.5"/>
+</svg>
+`)}`,
+    aspectRatio: 500 / 800,
+    anchorPointRatio: { x: 0.5, y: 0.05 },
+    shoulderSpanRatio: 0.85,
+    scaleFactor: 1.0,
+    offsetYFactor: 0.0,
+    availableSizes: ['S', 'M', 'L', 'XL'],
+    defaultSize: 'M',
+    sizeChart: {
+      S: { chestCm: 78, shoulderCm: 40.0, lengthCm: 103 },
+      M: { chestCm: 84, shoulderCm: 42.0, lengthCm: 105 },
+      L: { chestCm: 90, shoulderCm: 44.0, lengthCm: 107 },
+      XL: { chestCm: 96, shoulderCm: 46.0, lengthCm: 109 }
+    }
   }
 ];

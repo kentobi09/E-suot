@@ -207,6 +207,10 @@ export class PoseDetectionEngine {
       rightWrist: { x: 0.70 + swayX, y: 0.62, z: 0, visibility: 0.95 },
       leftHip,
       rightHip,
+      leftKnee: { x: 0.42 + swayX * 0.4, y: 0.82, z: -0.01, visibility: 0.95 },
+      rightKnee: { x: 0.58 + swayX * 0.4, y: 0.82, z: 0.01, visibility: 0.95 },
+      leftAnkle: { x: 0.43 + swayX * 0.3, y: 0.96, z: 0, visibility: 0.92 },
+      rightAnkle: { x: 0.57 + swayX * 0.3, y: 0.96, z: 0, visibility: 0.92 },
       neckBase,
       midHip,
       chestMid,
@@ -255,6 +259,10 @@ export class PoseDetectionEngine {
     const rightWrist = p(16);
     const leftHip = p(23);
     const rightHip = p(24);
+    const leftKnee = p(25);
+    const rightKnee = p(26);
+    const leftAnkle = p(27);
+    const rightAnkle = p(28);
 
     const shMidX = (leftShoulder.x + rightShoulder.x) / 2;
     const shMidY = (leftShoulder.y + rightShoulder.y) / 2;
@@ -316,6 +324,10 @@ export class PoseDetectionEngine {
       rightWrist,
       leftHip,
       rightHip,
+      leftKnee,
+      rightKnee,
+      leftAnkle,
+      rightAnkle,
       neckBase,
       midHip,
       chestMid,

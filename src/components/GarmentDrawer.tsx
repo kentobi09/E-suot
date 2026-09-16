@@ -28,6 +28,7 @@ export const GarmentDrawer: React.FC<GarmentDrawerProps> = ({
   const [featherEdges, setFeatherEdges] = useState(true);
   const [isProcessingCutout, setIsProcessingCutout] = useState(false);
   const [activeTab, setActiveTab] = useState<'wardrobe' | 'upload' | 'refine'>('wardrobe');
+  const [categoryFilter, setCategoryFilter] = useState<'all' | 'tops' | 'bottoms'>('all');
   const [rawUploadedImage, setRawUploadedImage] = useState<HTMLImageElement | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -99,33 +100,35 @@ export const GarmentDrawer: React.FC<GarmentDrawerProps> = ({
         const cutoutCanvas = garmentFitter.processBackgroundRemoval(img, bgThreshold, featherEdges);
         const customGarment: GarmentItem = {
           id: `custom-${Date.now()}`,
-          name: name || 'Custom Ingested Garment',
-          category: 'User Import',
-          editorialCode: 'ESU-USR-01',
-          brand: 'INDEPENDENT GARMENT',
-          colorName: 'Custom Palette',
-          hex: '#333333',
-          description: 'Client-side ingested product flat-lay with dynamic alpha background removal.',
-          fabricSpec: 'Imported User Texture',
+          name: name,
+          category: 'Custom Import',
+          editorialCode: `CST-${Math.floor(100 + Math.random() * 900)}`,
+          brand: 'USER ATELIER',
+          colorName: 'Custom Texture',
+          hex: '#8E8E93',
+          description: 'Client-ingested garment cut out via threshold isolation.',
+          fabricSpec: 'Dynamic Source',
           silhouette: 'Regular',
-          imageUrl: cutoutCanvas.toDataURL(),
-          aspectRatio: (img.naturalWidth || 500) / (img.naturalHeight || 600),
-          anchorPointRatio: { x: 0.5, y: 0.14 },
-          scaleFactor: 1.08,
-          offsetYFactor: 0.02,
+          imageUrl: cutoutCanvas.toDataURL('image/png'),
+          aspectRatio: cutoutCanvas.width / cutoutCanvas.height,
+          anchorPointRatio: { x: 0.5, y: 0.12 },
+          shoulderSpanRatio: 0.65,
+          scaleFactor: 1.0,
+          offsetYFactor: 0.0,
           availableSizes: ['S', 'M', 'L', 'XL'],
           defaultSize: 'M',
           sizeChart: {
-            S: { chestCm: 100, shoulderCm: 45.0, lengthCm: 70 },
-            M: { chestCm: 106, shoulderCm: 47.0, lengthCm: 72 },
-            L: { chestCm: 112, shoulderCm: 49.0, lengthCm: 74 },
-            XL: { chestCm: 118, shoulderCm: 51.0, lengthCm: 76 }
+            S: { chestCm: 100, shoulderCm: 45, lengthCm: 70 },
+            M: { chestCm: 106, shoulderCm: 47, lengthCm: 72 },
+            L: { chestCm: 112, shoulderCm: 49, lengthCm: 74 },
+            XL: { chestCm: 118, shoulderCm: 51, lengthCm: 76 }
           }
         };
 
         onCustomGarmentLoaded(cutoutCanvas, customGarment);
+        onSelectGarment(customGarment);
       } catch (err) {
-        console.error('Cutout processing error:', err);
+        console.error('Failed to process cutout:', err);
       } finally {
         setIsProcessingCutout(false);
       }
@@ -138,14 +141,20 @@ export const GarmentDrawer: React.FC<GarmentDrawerProps> = ({
     }
   };
 
+  const filteredPresets = GARMENT_PRESETS.filter((item) => {
+    if (categoryFilter === 'tops') return item.category !== 'bottoms';
+    if (categoryFilter === 'bottoms') return item.category === 'bottoms';
+    return true;
+  });
+
   return (
-    <div className="fixed inset-y-0 right-0 z-40 w-full sm:w-[440px] bg-[#131418] border-l border-[#222530] shadow-2xl flex flex-col overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-[#222530] bg-[#0A0A0C]">
+    <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-[460px] bg-[#111216] border-l border-[#222530] shadow-2xl flex flex-col transition-transform duration-300 ease-out">
+      {/* Drawer Header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-[#222530] bg-[#0E0F12]">
         <div>
-          <h2 className="text-xs font-mono font-semibold uppercase tracking-wider text-[#F5F5F7]">
-            GARMENT INGESTION & WARDROBE
-          </h2>
+          <div className="text-xs font-mono text-[#F5F5F7] font-semibold tracking-wider uppercase">
+            WARDROBE SELECTION
+          </div>
           <div className="text-[10px] font-mono text-[#7E8294]">
             STUDIO FLAT-LAY REPOSITORY
           </div>
@@ -168,7 +177,7 @@ export const GarmentDrawer: React.FC<GarmentDrawerProps> = ({
               : 'text-[#7E8294] hover:text-[#F5F5F7]'
           }`}
         >
-          Presets (3)
+          Presets ({GARMENT_PRESETS.length})
         </button>
         <button
           onClick={() => setActiveTab('upload')}
@@ -207,12 +216,46 @@ export const GarmentDrawer: React.FC<GarmentDrawerProps> = ({
               <span>Snap Clothes with Camera (Flat Lay / Worn)</span>
             </button>
 
+            {/* Category Filter Pills */}
+            <div className="flex items-center gap-2 pt-1 pb-1">
+              <button
+                onClick={() => setCategoryFilter('all')}
+                className={`px-3 py-1 text-[10px] font-mono uppercase tracking-wider rounded-full border transition-all cursor-pointer ${
+                  categoryFilter === 'all'
+                    ? 'bg-[#F5F5F7] text-[#0A0A0C] border-[#F5F5F7] font-semibold'
+                    : 'bg-[#15171E] text-[#8E92A4] border-[#252834] hover:border-[#3E4254]'
+                }`}
+              >
+                All Pieces
+              </button>
+              <button
+                onClick={() => setCategoryFilter('tops')}
+                className={`px-3 py-1 text-[10px] font-mono uppercase tracking-wider rounded-full border transition-all cursor-pointer ${
+                  categoryFilter === 'tops'
+                    ? 'bg-[#F5F5F7] text-[#0A0A0C] border-[#F5F5F7] font-semibold'
+                    : 'bg-[#15171E] text-[#8E92A4] border-[#252834] hover:border-[#3E4254]'
+                }`}
+              >
+                Tops / Shirts
+              </button>
+              <button
+                onClick={() => setCategoryFilter('bottoms')}
+                className={`px-3 py-1 text-[10px] font-mono uppercase tracking-wider rounded-full border transition-all cursor-pointer ${
+                  categoryFilter === 'bottoms'
+                    ? 'bg-[#F5F5F7] text-[#0A0A0C] border-[#F5F5F7] font-semibold'
+                    : 'bg-[#15171E] text-[#8E92A4] border-[#252834] hover:border-[#3E4254]'
+                }`}
+              >
+                Pants / Bottoms
+              </button>
+            </div>
+
             <div className="text-[11px] font-mono uppercase text-[#7E8294] tracking-wider">
-              CURATED EDITORIAL PIECES
+              CURATED EDITORIAL PIECES ({filteredPresets.length})
             </div>
 
             <div className="space-y-3">
-              {GARMENT_PRESETS.map((item) => {
+              {filteredPresets.map((item) => {
                 const isSelected = selectedGarment.id === item.id;
                 return (
                   <div

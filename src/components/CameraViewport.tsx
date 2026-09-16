@@ -123,6 +123,7 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
   // Anti-flicker temporal latching and smoothing refs
   const persistentKeypointsRef = useRef<PoseKeypoints | null>(null);
   const droppedFramesCountRef = useRef<number>(0);
+  const lightCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Preload garment texture
   useEffect(() => {
@@ -348,6 +349,10 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
               rightWrist: flip(det.keypoints.rightWrist),
               leftHip: flip(det.keypoints.leftHip)!,
               rightHip: flip(det.keypoints.rightHip)!,
+              leftKnee: flip(det.keypoints.leftKnee),
+              rightKnee: flip(det.keypoints.rightKnee),
+              leftAnkle: flip(det.keypoints.leftAnkle),
+              rightAnkle: flip(det.keypoints.rightAnkle),
               neckBase: flip(det.keypoints.neckBase)!,
               midHip: flip(det.keypoints.midHip)!,
               chestMid: flip(det.keypoints.chestMid)!,
@@ -595,7 +600,42 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
           // =======================================================
           if (activeImageSource) {
             if (fitEngine === 'mesh') {
-              // 3D Parametric Cylindrical Torso Mesh (Three.js WebGL Engine)
+              // Real-Time Environmental Light Estimation
+              let envLighting = { luminance: 0.72, r: 1.0, g: 1.0, b: 1.0 };
+              if (!lightCanvasRef.current) {
+                lightCanvasRef.current = document.createElement('canvas');
+                lightCanvasRef.current.width = 16;
+                lightCanvasRef.current.height = 16;
+              }
+              const lightCtx = lightCanvasRef.current.getContext('2d', { willReadFrequently: true });
+              if (lightCtx && videoRef.current && cameraActive) {
+                try {
+                  lightCtx.drawImage(videoRef.current, 0, 0, 16, 16);
+                  const pData = lightCtx.getImageData(0, 0, 16, 16).data;
+                  let sumR = 0, sumG = 0, sumB = 0;
+                  const totalPixels = 16 * 16;
+                  for (let pIdx = 0; pIdx < pData.length; pIdx += 4) {
+                    sumR += pData[pIdx];
+                    sumG += pData[pIdx + 1];
+                    sumB += pData[pIdx + 2];
+                  }
+                  const avgR = (sumR / totalPixels) / 255;
+                  const avgG = (sumG / totalPixels) / 255;
+                  const avgB = (sumB / totalPixels) / 255;
+                  const lum = 0.299 * avgR + 0.587 * avgG + 0.114 * avgB;
+                  const maxC = Math.max(avgR, Math.max(avgG, avgB)) || 1;
+                  envLighting = {
+                    luminance: Math.max(0.25, Math.min(1.0, lum)),
+                    r: Math.max(0.72, avgR / maxC),
+                    g: Math.max(0.72, avgG / maxC),
+                    b: Math.max(0.72, avgB / maxC)
+                  };
+                } catch {
+                  // Fallback to studio light default
+                }
+              }
+
+              // 3D Parametric Cylindrical Torso & Skinned Mesh Engine
               const threeCanvas = threeGarmentEngine.render3DGarment(
                 cw,
                 ch,
@@ -607,7 +647,8 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
                   wireframeOnly,
                   sizeMultiplier: getSizeMultiplier(selectedSize),
                   fitEngine,
-                  showLandmarks
+                  showLandmarks,
+                  environmentalLighting: envLighting
                 }
               );
 
