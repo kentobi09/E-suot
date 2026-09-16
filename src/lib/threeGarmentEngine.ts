@@ -1,12 +1,21 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { PoseKeypoints, GarmentItem, GarmentRenderOptions } from './types';
+import { SkeletonController } from './skeletonController';
+import { OcclusionPipeline } from './occlusionPipeline';
+import { OneEuroVector3Filter, OneEuroQuaternionFilter } from './landmarkSmoothing';
 
 export class ThreeGarmentEngine {
   private renderer: THREE.WebGLRenderer | null = null;
   private scene: THREE.Scene | null = null;
   private camera: THREE.PerspectiveCamera | null = null;
   private pivotGroup: THREE.Group | null = null;
+
+  // Production-Grade Skeletal Rig & Depth Occlusion Pipelines
+  private skeletonController: SkeletonController | null = null;
+  private occlusionPipeline: OcclusionPipeline | null = null;
+  private rootJitterFilter: OneEuroVector3Filter = new OneEuroVector3Filter(1.2, 0.015);
+  private yawJitterFilter: OneEuroQuaternionFilter = new OneEuroQuaternionFilter(1.0, 0.018);
 
   // Multi-part 3D garment mesh components (Tops)
   private torsoMesh: THREE.Mesh | null = null;
@@ -44,7 +53,7 @@ export class ThreeGarmentEngine {
 
   private width: number = 0;
   private height: number = 0;
-  private readonly fov: number = 50; // Standard optical camera vertical FOV
+  private readonly fov: number = 60; // Production-grade 60-degree optical camera vertical FOV
 
   constructor() {
     this.initThree();
@@ -101,6 +110,13 @@ export class ThreeGarmentEngine {
 
     // Preload True 3D Photorealistic Baked Shirt Asset
     this.loadBaked3DShirtModel();
+
+    // Initialize SkinnedMesh Skeleton Rig & Depth Occlusion Pipelines
+    this.skeletonController = new SkeletonController();
+    this.occlusionPipeline = new OcclusionPipeline();
+    if (this.camera) {
+      this.occlusionPipeline.getOrCreateMesh(this.scene, this.camera);
+    }
   }
 
   /**
@@ -873,6 +889,28 @@ export class ThreeGarmentEngine {
 
     this.resize(canvasWidth, canvasHeight);
 
+    const now = performance.now();
+
+    // -------------------------------------------------------------
+    // Production-Grade Depth Buffer Silhouette Occlusion Pass
+    // -------------------------------------------------------------
+    if (this.occlusionPipeline && this.camera && this.scene) {
+      if (kp.segmentationMask) {
+        this.occlusionPipeline.updateMask(kp.segmentationMask);
+        this.occlusionPipeline.setEnabled(true);
+      }
+      this.occlusionPipeline.getOrCreateMesh(this.scene, this.camera);
+      const userDist = (kp.midHip && kp.midHip.z !== undefined) ? 1.8 + kp.midHip.z : 1.8;
+      this.occlusionPipeline.updateDepth(userDist, this.camera);
+    }
+
+    // -------------------------------------------------------------
+    // SkinnedMesh 7-Bone Kinematic Rig Update from worldLandmarks
+    // -------------------------------------------------------------
+    if (kp.worldLandmarks && this.skeletonController) {
+      this.skeletonController.update(kp.worldLandmarks, now);
+    }
+
     // -------------------------------------------------------------
     // Real-Time Environmental Light & Tone Matching Constraint
     // -------------------------------------------------------------
@@ -1250,12 +1288,14 @@ export class ThreeGarmentEngine {
       this.pivotGroup.add(this.collarMesh);
     }
 
-    // Set Global Pivot Positioning & 3D Pose Rotation
-    this.pivotGroup.position.set(threeCollarX, threeCollarY, 0);
-    this.pivotGroup.rotation.order = 'ZYX';
-    this.pivotGroup.rotation.z = -rollAngle;  // Roll (shoulder tilt)
-    this.pivotGroup.rotation.y = yawAngle;    // Yaw (body turn in 3D)
-    this.pivotGroup.rotation.x = -pitchAngle; // Pitch (leaning forward/backward)
+    // 1-Euro Filtered Global Pivot Positioning & 3D Pose Rotation
+    const filteredPos = this.rootJitterFilter.filter(new THREE.Vector3(threeCollarX, threeCollarY, 0), now);
+    this.pivotGroup.position.copy(filteredPos);
+
+    const rawEuler = new THREE.Euler(-pitchAngle, yawAngle, -rollAngle, 'ZYX');
+    const rawQuat = new THREE.Quaternion().setFromEuler(rawEuler);
+    const filteredQuat = this.yawJitterFilter.filter(rawQuat, now);
+    this.pivotGroup.quaternion.copy(filteredQuat);
 
     const pivotInvQuat = this.pivotGroup.quaternion.clone().invert();
 

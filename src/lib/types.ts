@@ -36,6 +36,11 @@ export interface PoseKeypoints {
   torsoAngleRad: number;
   bodyRotationY: number; // yaw approximation
   confidence: number;
+
+  // Real-world 3D metric landmarks (in meters) from MediaPipe
+  worldLandmarks?: { x: number; y: number; z: number; visibility?: number }[];
+  // Binary / alpha segmentation mask of user silhouette for depth occlusion
+  segmentationMask?: ImageBitmap | HTMLCanvasElement | null;
 }
 
 export interface EnvironmentalLighting {

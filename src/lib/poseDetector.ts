@@ -1,12 +1,20 @@
-import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
+import { FilesetResolver, PoseLandmarker, ImageSegmenter } from '@mediapipe/tasks-vision';
 import { LandmarkPoint, PoseKeypoints, BodyDimensions } from './types';
 
 export class PoseDetectionEngine {
   private landmarker: PoseLandmarker | null = null;
+  private segmenter: ImageSegmenter | null = null;
   private isInitializing: boolean = false;
   private initError: string | null = null;
   private lastVideoTime: number = -1;
   private calibrationRatio: number = 1.0; // User adjustable scale factor
+
+  // Real-time silhouette segmentation buffer for depth occlusion
+  private lastSegmentationMask: HTMLCanvasElement | null = null;
+  private segmentCanvas: HTMLCanvasElement | null = null;
+  private segmentCtx: CanvasRenderingContext2D | null = null;
+  private segmentFrameCounter: number = 0;
+
   private smoothedDimensions: BodyDimensions = {
     shoulderWidthCm: 46.0,
     torsoLengthCm: 62.0,
@@ -46,6 +54,21 @@ export class PoseDetectionEngine {
         minPosePresenceConfidence: 0.5,
         minTrackingConfidence: 0.5
       });
+
+      // Initialize lightweight real-time selfie segmentation for depth buffer occlusion
+      try {
+        this.segmenter = await ImageSegmenter.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite',
+            delegate: 'GPU'
+          },
+          runningMode: 'VIDEO',
+          outputCategoryMask: true,
+          outputConfidenceMasks: false
+        });
+      } catch (segErr) {
+        console.warn('ImageSegmenter GPU init fallback:', segErr);
+      }
 
       this.isInitializing = false;
       return true;
@@ -144,6 +167,57 @@ export class PoseDetectionEngine {
       this.missedFramesCount = 0;
       const rawLandmarks = result.landmarks[0];
       const keypoints = this.extractKeypoints(rawLandmarks);
+
+      // Attach 3D metric worldLandmarks for SkinnedMesh rigging
+      if (result.worldLandmarks && result.worldLandmarks.length > 0) {
+        keypoints.worldLandmarks = result.worldLandmarks[0];
+      }
+
+      // Execute real-time silhouette segmentation (every 2nd frame for 60fps budget)
+      this.segmentFrameCounter++;
+      if (this.segmenter && this.segmentFrameCounter % 2 === 0 && (source instanceof HTMLVideoElement || source instanceof HTMLCanvasElement)) {
+        try {
+          this.segmenter.segmentForVideo(source as any, timestampMs, (segResult) => {
+            if (segResult && segResult.categoryMask) {
+              const mask = segResult.categoryMask;
+              const mW = mask.width;
+              const mH = mask.height;
+
+              if (!this.segmentCanvas) {
+                this.segmentCanvas = document.createElement('canvas');
+              }
+              if (this.segmentCanvas.width !== mW || this.segmentCanvas.height !== mH) {
+                this.segmentCanvas.width = mW;
+                this.segmentCanvas.height = mH;
+                this.segmentCtx = this.segmentCanvas.getContext('2d', { willReadFrequently: true });
+              }
+
+              if (this.segmentCtx) {
+                const maskBytes = mask.getAsUint8Array();
+                const imgData = this.segmentCtx.createImageData(mW, mH);
+                const out = imgData.data;
+                for (let i = 0; i < maskBytes.length; i++) {
+                  const isUser = maskBytes[i] > 0;
+                  const idx = i * 4;
+                  out[idx] = 255;
+                  out[idx + 1] = 255;
+                  out[idx + 2] = 255;
+                  out[idx + 3] = isUser ? 255 : 0;
+                }
+                this.segmentCtx.putImageData(imgData, 0, 0);
+                this.lastSegmentationMask = this.segmentCanvas;
+              }
+            }
+          });
+        } catch {
+          // Graceful fallback
+        }
+      }
+
+      if (this.lastSegmentationMask) {
+        keypoints.segmentationMask = this.lastSegmentationMask;
+      }
+
       const dimensions = this.computeDimensions(keypoints, width, height);
 
       this.lastDetectedKeypoints = keypoints;
