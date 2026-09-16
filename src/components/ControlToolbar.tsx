@@ -107,10 +107,10 @@ export const ControlToolbar: React.FC<ControlToolbarProps> = ({
 
         <div className="w-[1px] h-4 bg-[#222530] shrink-0" />
 
-        {/* Fit Engine Toggle (Adaptive Mesh vs Quick Affine) */}
+        {/* Fit Engine Toggle (3D Parametric Mesh vs 2D Quick Affine) */}
         <button
           onClick={onToggleFitEngine}
-          title={`Active Engine: ${fitEngine === 'mesh' ? 'Adaptive Curvature Mesh' : '2D Quick Affine'}`}
+          title={`Active Engine: ${fitEngine === 'mesh' ? '3D Parametric Cylindrical Mesh (Three.js)' : '2D Quick Fit'}`}
           className={`flex items-center gap-1 px-2 py-1 text-[10px] font-mono rounded border transition-colors cursor-pointer shrink-0 ${
             fitEngine === 'mesh'
               ? 'bg-[#1A1C23] border-[#3A3F52] text-[#F5F5F7]'
@@ -118,7 +118,7 @@ export const ControlToolbar: React.FC<ControlToolbarProps> = ({
           }`}
         >
           <Cpu className="w-3 h-3 text-[#10B981]" />
-          <span className="hidden xl:inline">{fitEngine === 'mesh' ? 'Adaptive Mesh' : 'Quick Fit'}</span>
+          <span className="hidden xl:inline">{fitEngine === 'mesh' ? '3D Mesh' : '2D Quick'}</span>
         </button>
 
         {/* Wireframe Toggle */}

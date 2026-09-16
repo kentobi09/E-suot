@@ -89,15 +89,15 @@ export class PoseDetectionEngine {
     return this.calibrationRatio;
   }
 
-  /**
-   * Detects pose landmarks from an HTMLVideoElement, HTMLImageElement, or HTMLCanvasElement
-   */
+  private lastDetectedKeypoints: PoseKeypoints | null = null;
+  private missedFramesCount: number = 0;
+
   public detect(source: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement, timestampMs: number): {
     keypoints: PoseKeypoints | null;
     dimensions: BodyDimensions;
   } {
     if (!this.landmarker) {
-      return { keypoints: null, dimensions: this.smoothedDimensions };
+      return { keypoints: this.lastDetectedKeypoints, dimensions: this.smoothedDimensions };
     }
 
     let width = 0;
@@ -105,17 +105,19 @@ export class PoseDetectionEngine {
 
     if (source instanceof HTMLVideoElement) {
       if (source.readyState < 2) {
-        return { keypoints: null, dimensions: this.smoothedDimensions };
+        return { keypoints: this.lastDetectedKeypoints, dimensions: this.smoothedDimensions };
       }
+      // If video timestamp has not advanced (e.g. 60Hz RAF with 30Hz camera feed),
+      // persist the last detected keypoints to avoid 30Hz blinking/strobing!
       if (source.currentTime === this.lastVideoTime) {
-        return { keypoints: null, dimensions: this.smoothedDimensions };
+        return { keypoints: this.lastDetectedKeypoints, dimensions: this.smoothedDimensions };
       }
       this.lastVideoTime = source.currentTime;
       width = source.videoWidth;
       height = source.videoHeight;
     } else if (source instanceof HTMLImageElement) {
       if (!source.complete || !source.naturalWidth) {
-        return { keypoints: null, dimensions: this.smoothedDimensions };
+        return { keypoints: this.lastDetectedKeypoints, dimensions: this.smoothedDimensions };
       }
       width = source.naturalWidth;
       height = source.naturalHeight;
@@ -125,23 +127,30 @@ export class PoseDetectionEngine {
     }
 
     if (width === 0 || height === 0) {
-      return { keypoints: null, dimensions: this.smoothedDimensions };
+      return { keypoints: this.lastDetectedKeypoints, dimensions: this.smoothedDimensions };
     }
 
     try {
       const result = this.landmarker.detectForVideo(source as any, timestampMs);
       if (!result || !result.landmarks || result.landmarks.length === 0) {
-        return { keypoints: null, dimensions: this.smoothedDimensions };
+        this.missedFramesCount++;
+        // Keep persisting for up to 15 dropped frames (~0.5s) to eliminate flickering
+        if (this.missedFramesCount > 15) {
+          this.lastDetectedKeypoints = null;
+        }
+        return { keypoints: this.lastDetectedKeypoints, dimensions: this.smoothedDimensions };
       }
 
+      this.missedFramesCount = 0;
       const rawLandmarks = result.landmarks[0];
       const keypoints = this.extractKeypoints(rawLandmarks);
       const dimensions = this.computeDimensions(keypoints, width, height);
 
+      this.lastDetectedKeypoints = keypoints;
       return { keypoints, dimensions };
     } catch (err) {
       console.error('Error during pose detection:', err);
-      return { keypoints: null, dimensions: this.smoothedDimensions };
+      return { keypoints: this.lastDetectedKeypoints, dimensions: this.smoothedDimensions };
     }
   }
 
@@ -161,9 +170,11 @@ export class PoseDetectionEngine {
     const leftHip: LandmarkPoint = { x: 0.41 + swayX * 0.5, y: 0.66, z: -0.02, visibility: 0.98 };
     const rightHip: LandmarkPoint = { x: 0.59 + swayX * 0.5, y: 0.66, z: 0.02, visibility: 0.98 };
 
+    const shMidX = (leftShoulder.x + rightShoulder.x) / 2;
+    const shMidY = (leftShoulder.y + rightShoulder.y) / 2;
     const neckBase: LandmarkPoint = {
-      x: (leftShoulder.x + rightShoulder.x) / 2,
-      y: (leftShoulder.y + rightShoulder.y) / 2,
+      x: shMidX,
+      y: shMidY - 0.03,
       z: 0
     };
     const midHip: LandmarkPoint = {
@@ -245,9 +256,18 @@ export class PoseDetectionEngine {
     const leftHip = p(23);
     const rightHip = p(24);
 
+    const shMidX = (leftShoulder.x + rightShoulder.x) / 2;
+    const shMidY = (leftShoulder.y + rightShoulder.y) / 2;
+    
+    // In human anatomy, the collar base (suprasternal notch) is elevated above the biacromial shoulder line
+    // towards the chin/nose. This prevents the garment collar from sagging below the neck onto the chest.
+    const neckLift = (nose.visibility && nose.visibility > 0.35 && nose.y < shMidY)
+      ? (shMidY - nose.y) * 0.22
+      : 0.035;
+
     const neckBase: LandmarkPoint = {
-      x: (leftShoulder.x + rightShoulder.x) / 2,
-      y: (leftShoulder.y + rightShoulder.y) / 2,
+      x: shMidX,
+      y: shMidY - neckLift,
       z: ((leftShoulder.z || 0) + (rightShoulder.z || 0)) / 2,
       visibility: Math.min(leftShoulder.visibility || 0.5, rightShoulder.visibility || 0.5)
     };

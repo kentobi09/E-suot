@@ -3,6 +3,55 @@ import { Camera, AlertTriangle, Monitor, SwitchCamera, RotateCcw, Check, Image a
 import { BodyDimensions, GarmentItem, PoseKeypoints, FitEngineMode, SnapshotData, ScanPhase, LandmarkPoint } from '../lib/types';
 import { poseEngine } from '../lib/poseDetector';
 import { garmentFitter } from '../lib/garmentFitter';
+import { threeGarmentEngine } from '../lib/threeGarmentEngine';
+
+function lerpVal(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+function lerpPoint(prev: LandmarkPoint, next: LandmarkPoint, t: number): LandmarkPoint {
+  return {
+    x: lerpVal(prev.x, next.x, t),
+    y: lerpVal(prev.y, next.y, t),
+    z: prev.z !== undefined && next.z !== undefined ? lerpVal(prev.z, next.z, t) : next.z,
+    visibility: prev.visibility !== undefined && next.visibility !== undefined
+      ? lerpVal(prev.visibility, next.visibility, t)
+      : next.visibility
+  };
+}
+
+function smoothPoseKeypoints(prev: PoseKeypoints, next: PoseKeypoints, alpha: number = 0.42): PoseKeypoints {
+  const smoothOpt = (p1?: LandmarkPoint, p2?: LandmarkPoint) => {
+    if (p1 && p2) return lerpPoint(p1, p2, alpha);
+    return p2 || p1;
+  };
+
+  return {
+    ...next,
+    nose: smoothOpt(prev.nose, next.nose),
+    leftEye: smoothOpt(prev.leftEye, next.leftEye),
+    rightEye: smoothOpt(prev.rightEye, next.rightEye),
+    leftEar: smoothOpt(prev.leftEar, next.leftEar),
+    rightEar: smoothOpt(prev.rightEar, next.rightEar),
+    leftShoulder: lerpPoint(prev.leftShoulder, next.leftShoulder, alpha),
+    rightShoulder: lerpPoint(prev.rightShoulder, next.rightShoulder, alpha),
+    leftElbow: smoothOpt(prev.leftElbow, next.leftElbow),
+    rightElbow: smoothOpt(prev.rightElbow, next.rightElbow),
+    leftWrist: smoothOpt(prev.leftWrist, next.leftWrist),
+    rightWrist: smoothOpt(prev.rightWrist, next.rightWrist),
+    leftHip: lerpPoint(prev.leftHip, next.leftHip, alpha),
+    rightHip: lerpPoint(prev.rightHip, next.rightHip, alpha),
+    neckBase: lerpPoint(prev.neckBase, next.neckBase, alpha),
+    midHip: lerpPoint(prev.midHip, next.midHip, alpha),
+    chestMid: lerpPoint(prev.chestMid, next.chestMid, alpha),
+    shoulderWidthNorm: lerpVal(prev.shoulderWidthNorm, next.shoulderWidthNorm, alpha),
+    torsoHeightNorm: lerpVal(prev.torsoHeightNorm, next.torsoHeightNorm, alpha),
+    shoulderSlopeRad: lerpVal(prev.shoulderSlopeRad, next.shoulderSlopeRad, alpha),
+    torsoAngleRad: lerpVal(prev.torsoAngleRad, next.torsoAngleRad, alpha),
+    bodyRotationY: lerpVal(prev.bodyRotationY, next.bodyRotationY, alpha),
+    confidence: lerpVal(prev.confidence, next.confidence, alpha)
+  };
+}
 
 interface CameraViewportProps {
   currentGarment: GarmentItem;
@@ -70,6 +119,10 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
   const lastDimensionsRef = useRef<BodyDimensions | null>(null);
   const stableFramesRef = useRef<number>(0);
   const lastShoulderWidthRef = useRef<number>(0);
+
+  // Anti-flicker temporal latching and smoothing refs
+  const persistentKeypointsRef = useRef<PoseKeypoints | null>(null);
+  const droppedFramesCountRef = useRef<number>(0);
 
   // Preload garment texture
   useEffect(() => {
@@ -420,10 +473,30 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
       const ch = canvas.height;
 
       // =========================================================
-      // 2. Phase 1 vs Phase 2 Logic
+      // 2. Anti-Flicker Temporal Latching & EMA Smoothing
       // =========================================================
       if (currentKeypoints) {
-        lastKeypointsRef.current = currentKeypoints;
+        droppedFramesCountRef.current = 0;
+        if (persistentKeypointsRef.current) {
+          persistentKeypointsRef.current = smoothPoseKeypoints(persistentKeypointsRef.current, currentKeypoints, 0.42);
+        } else {
+          persistentKeypointsRef.current = currentKeypoints;
+        }
+      } else {
+        droppedFramesCountRef.current++;
+        // Retain last known pose for up to 18 dropped frames (~0.6s) to completely eradicate 30Hz blinking/strobing
+        if (droppedFramesCountRef.current > 18) {
+          persistentKeypointsRef.current = null;
+        }
+      }
+
+      const activeKeypoints = persistentKeypointsRef.current;
+
+      // =========================================================
+      // 3. Phase 1 vs Phase 2 Logic
+      // =========================================================
+      if (activeKeypoints) {
+        lastKeypointsRef.current = activeKeypoints;
 
         if (scanPhase === 'scanning') {
           // =======================================================
@@ -432,13 +505,13 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
           ctx.save();
 
           // A. Laser Scan Sweep Hairline
-          const torsoTop = currentKeypoints.neckBase.y * ch;
-          const torsoBottom = currentKeypoints.midHip.y * ch;
+          const torsoTop = activeKeypoints.neckBase.y * ch;
+          const torsoBottom = activeKeypoints.midHip.y * ch;
           const scanRange = Math.max(80, torsoBottom - torsoTop);
           const scanY = torsoTop + ((Math.sin(time / 450) + 1) / 2) * scanRange;
 
-          const minShX = Math.min(currentKeypoints.leftShoulder.x, currentKeypoints.rightShoulder.x);
-          const maxShX = Math.max(currentKeypoints.leftShoulder.x, currentKeypoints.rightShoulder.x);
+          const minShX = Math.min(activeKeypoints.leftShoulder.x, activeKeypoints.rightShoulder.x);
+          const maxShX = Math.max(activeKeypoints.leftShoulder.x, activeKeypoints.rightShoulder.x);
           const leftX = (minShX - 0.08) * cw;
           const rightX = (maxShX + 0.08) * cw;
 
@@ -467,10 +540,10 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
           ctx.setLineDash([4, 4]);
 
           // Shoulder biacromial line
-          const lsX = currentKeypoints.leftShoulder.x * cw;
-          const lsY = currentKeypoints.leftShoulder.y * ch;
-          const rsX = currentKeypoints.rightShoulder.x * cw;
-          const rsY = currentKeypoints.rightShoulder.y * ch;
+          const lsX = activeKeypoints.leftShoulder.x * cw;
+          const lsY = activeKeypoints.leftShoulder.y * ch;
+          const rsX = activeKeypoints.rightShoulder.x * cw;
+          const rsY = activeKeypoints.rightShoulder.y * ch;
 
           ctx.beginPath();
           ctx.moveTo(lsX, lsY);
@@ -479,19 +552,19 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
 
           // Spine vertical line
           ctx.beginPath();
-          ctx.moveTo(currentKeypoints.neckBase.x * cw, currentKeypoints.neckBase.y * ch);
-          ctx.lineTo(currentKeypoints.midHip.x * cw, currentKeypoints.midHip.y * ch);
+          ctx.moveTo(activeKeypoints.neckBase.x * cw, activeKeypoints.neckBase.y * ch);
+          ctx.lineTo(activeKeypoints.midHip.x * cw, activeKeypoints.midHip.y * ch);
           ctx.stroke();
 
           // Nodes at key anatomical landmarks
           ctx.setLineDash([]);
           [
-            currentKeypoints.leftShoulder,
-            currentKeypoints.rightShoulder,
-            currentKeypoints.neckBase,
-            currentKeypoints.chestMid,
-            currentKeypoints.leftHip,
-            currentKeypoints.rightHip
+            activeKeypoints.leftShoulder,
+            activeKeypoints.rightShoulder,
+            activeKeypoints.neckBase,
+            activeKeypoints.chestMid,
+            activeKeypoints.leftHip,
+            activeKeypoints.rightHip
           ].forEach((pt) => {
             ctx.fillStyle = '#10B981';
             ctx.beginPath();
@@ -513,7 +586,7 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
           ctx.font = '10px monospace';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(`SPAN: ${(currentKeypoints.shoulderWidthNorm * 100).toFixed(0)}%`, midShX, midShY);
+          ctx.fillText(`SPAN: ${(activeKeypoints.shoulderWidthNorm * 100).toFixed(0)}%`, midShX, midShY);
 
           ctx.restore();
         } else {
@@ -521,21 +594,66 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
           // PHASE 2: BODY LOCKED -> RENDER CLOTHES ON USER
           // =======================================================
           if (activeImageSource) {
-            garmentFitter.renderGarment(
-              ctx,
-              cw,
-              ch,
-              currentKeypoints,
-              currentGarment,
-              activeImageSource,
-              {
-                opacity,
-                wireframeOnly,
-                sizeMultiplier: getSizeMultiplier(selectedSize),
-                fitEngine,
-                showLandmarks
+            if (fitEngine === 'mesh') {
+              // 3D Parametric Cylindrical Torso Mesh (Three.js WebGL Engine)
+              const threeCanvas = threeGarmentEngine.render3DGarment(
+                cw,
+                ch,
+                activeKeypoints,
+                currentGarment,
+                activeImageSource,
+                {
+                  opacity,
+                  wireframeOnly,
+                  sizeMultiplier: getSizeMultiplier(selectedSize),
+                  fitEngine,
+                  showLandmarks
+                }
+              );
+
+              if (threeCanvas) {
+                ctx.drawImage(threeCanvas, 0, 0);
+              } else {
+                // High-performance fallback
+                garmentFitter.renderGarment(
+                  ctx,
+                  cw,
+                  ch,
+                  activeKeypoints,
+                  currentGarment,
+                  activeImageSource,
+                  {
+                    opacity,
+                    wireframeOnly,
+                    sizeMultiplier: getSizeMultiplier(selectedSize),
+                    fitEngine,
+                    showLandmarks
+                  }
+                );
               }
-            );
+            } else {
+              // 2D Quick Fit
+              garmentFitter.renderGarment(
+                ctx,
+                cw,
+                ch,
+                activeKeypoints,
+                currentGarment,
+                activeImageSource,
+                {
+                  opacity,
+                  wireframeOnly,
+                  sizeMultiplier: getSizeMultiplier(selectedSize),
+                  fitEngine,
+                  showLandmarks
+                }
+              );
+            }
+
+            // Skeletal landmarks toggle overlay
+            if (showLandmarks) {
+              garmentFitter.renderLandmarkSkeleton(ctx, cw, ch, activeKeypoints);
+            }
           }
         }
       }

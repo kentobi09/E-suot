@@ -1,12 +1,6 @@
-import { PoseKeypoints, GarmentItem, FitEngineMode } from './types';
+import { PoseKeypoints, GarmentItem, FitEngineMode, GarmentRenderOptions } from './types';
 
-export interface GarmentRenderOptions {
-  opacity: number; // 0.0 to 1.0
-  wireframeOnly: boolean;
-  sizeMultiplier: number; // 0.9 (S) to 1.15 (XXL)
-  fitEngine: FitEngineMode;
-  showLandmarks: boolean;
-}
+export type { GarmentRenderOptions };
 
 export class GarmentFitter {
   private imageCache: Map<string, HTMLImageElement> = new Map();
@@ -142,18 +136,28 @@ export class GarmentFitter {
     const maxTilt = (35 * Math.PI) / 180;
     const angle = Math.max(-maxTilt, Math.min(maxTilt, rawAngle));
 
-    const neckX = kp.neckBase.x * canvasWidth;
-    const neckY = (kp.neckBase.y + garment.offsetYFactor) * canvasHeight;
+    const shMidX = (shLeftX + shRightX) / 2;
+    const shMidY = (shLeftY + shRightY) / 2;
 
-    // Garment dimensions based on physical shoulder span and scaling multiplier
-    const garmentWidth = shoulderSpan * 1.95 * garment.scaleFactor * options.sizeMultiplier;
+    // Upward perpendicular unit vector from shoulder line towards head
+    const upX = Math.sin(angle);
+    const upY = -Math.cos(angle);
+
+    // Anatomical suprasternal notch collar elevation above shoulder midpoint
+    const neckElev = shoulderSpan * 0.08;
+    const collarX = shMidX + upX * neckElev;
+    const collarY = shMidY + upY * neckElev + (garment.offsetYFactor || 0) * canvasHeight;
+
+    // Garment dimensions based on physical shoulder-to-shoulder seam ratio
+    const shoulderRatio = garment.shoulderSpanRatio || 0.68;
+    const garmentWidth = (shoulderSpan / shoulderRatio) * (garment.scaleFactor || 1.0) * options.sizeMultiplier;
     const garmentHeight = garmentWidth / garment.aspectRatio;
 
     const anchorRelX = garment.anchorPointRatio.x;
     const anchorRelY = garment.anchorPointRatio.y;
 
     ctx.save();
-    ctx.translate(neckX, neckY);
+    ctx.translate(collarX, collarY);
     ctx.rotate(angle);
 
     if (options.wireframeOnly) {
@@ -215,10 +219,21 @@ export class GarmentFitter {
     const maxTilt = (35 * Math.PI) / 180;
     const angle = Math.max(-maxTilt, Math.min(maxTilt, rawAngle));
 
-    const neckX = kp.neckBase.x * canvasWidth;
-    const neckY = (kp.neckBase.y + garment.offsetYFactor) * canvasHeight;
+    const shMidX = (shLeftX + shRightX) / 2;
+    const shMidY = (shLeftY + shRightY) / 2;
 
-    const garmentWidth = shoulderSpan * 1.98 * garment.scaleFactor * options.sizeMultiplier;
+    // Upward perpendicular unit vector from shoulder line towards head
+    const upX = Math.sin(angle);
+    const upY = -Math.cos(angle);
+
+    // Anatomical suprasternal notch collar elevation above shoulder midpoint
+    const neckElev = shoulderSpan * 0.08;
+    const collarX = shMidX + upX * neckElev;
+    const collarY = shMidY + upY * neckElev + (garment.offsetYFactor || 0) * canvasHeight;
+
+    // Garment dimensions based on physical shoulder-to-shoulder seam ratio
+    const shoulderRatio = garment.shoulderSpanRatio || 0.68;
+    const garmentWidth = (shoulderSpan / shoulderRatio) * (garment.scaleFactor || 1.0) * options.sizeMultiplier;
     const garmentHeight = garmentWidth / garment.aspectRatio;
 
     const sourceW = (imageSource as HTMLImageElement).naturalWidth || imageSource.width;
@@ -226,7 +241,7 @@ export class GarmentFitter {
 
     // Anchor center
     ctx.save();
-    ctx.translate(neckX, neckY);
+    ctx.translate(collarX, collarY);
     ctx.rotate(angle);
 
     const startX = -garmentWidth * garment.anchorPointRatio.x;
@@ -279,7 +294,7 @@ export class GarmentFitter {
   /**
    * Minimalist, architectural landmark skeleton rendering (Bone-white #E2E8F0)
    */
-  private renderLandmarkSkeleton(
+  public renderLandmarkSkeleton(
     ctx: CanvasRenderingContext2D,
     w: number,
     h: number,

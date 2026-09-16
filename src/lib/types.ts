@@ -71,6 +71,7 @@ export interface GarmentItem {
   imageUrl: string;
   aspectRatio: number; // width / height
   anchorPointRatio: { x: number; y: number }; // Relative collar center [0.5, 0.12]
+  shoulderSpanRatio?: number; // Fraction of image width between shoulder seams (e.g. 0.64)
   scaleFactor: number;
   offsetYFactor: number;
   sizeChart: Record<string, GarmentSizeSpec>;
@@ -79,6 +80,15 @@ export interface GarmentItem {
 }
 
 export type FitEngineMode = 'quick' | 'mesh';
+
+export interface GarmentRenderOptions {
+  opacity: number; // 0.0 to 1.0
+  wireframeOnly: boolean;
+  sizeMultiplier: number; // 0.9 (S) to 1.15 (XXL)
+  fitEngine: FitEngineMode;
+  showLandmarks: boolean;
+}
+
 export type SilhouettePreference = 'tailored' | 'regular' | 'oversized';
 
 export interface FitRecommendation {
