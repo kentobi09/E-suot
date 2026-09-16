@@ -40,7 +40,7 @@ export class ThreeGarmentEngine {
       preserveDrawingBuffer: true,
       powerPreference: 'high-performance'
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.setPixelRatio(1);
     this.renderer.setClearColor(0x000000, 0);
 
     // Architectural luxury lighting
@@ -70,6 +70,7 @@ export class ThreeGarmentEngine {
       this.camera.bottom = -height / 2;
       this.camera.updateProjectionMatrix();
 
+      this.renderer.setPixelRatio(1);
       this.renderer.setSize(width, height, false);
     }
   }

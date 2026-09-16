@@ -612,7 +612,7 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
               );
 
               if (threeCanvas) {
-                ctx.drawImage(threeCanvas, 0, 0);
+                ctx.drawImage(threeCanvas, 0, 0, cw, ch);
               } else {
                 // High-performance fallback
                 garmentFitter.renderGarment(
