@@ -1,4 +1,4 @@
-﻿import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
+import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
 import { LandmarkPoint, PoseKeypoints, BodyDimensions } from './types';
 
 export class PoseDetectionEngine {
@@ -17,7 +17,9 @@ export class PoseDetectionEngine {
     distanceEstimateM: 1.8,
     alignmentScore: 92,
     isAligned: true,
-    confidence: 0.95
+    confidence: 0.95,
+    scanPhase: 'scanning',
+    stabilityProgress: 0
   };
 
   public async initialize(): Promise<boolean> {
@@ -88,30 +90,53 @@ export class PoseDetectionEngine {
   }
 
   /**
-   * Detects pose landmarks from an HTMLVideoElement in real time
+   * Detects pose landmarks from an HTMLVideoElement, HTMLImageElement, or HTMLCanvasElement
    */
-  public detect(video: HTMLVideoElement, timestampMs: number): {
+  public detect(source: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement, timestampMs: number): {
     keypoints: PoseKeypoints | null;
     dimensions: BodyDimensions;
   } {
-    if (!this.landmarker || video.readyState < 2) {
+    if (!this.landmarker) {
       return { keypoints: null, dimensions: this.smoothedDimensions };
     }
 
-    if (video.currentTime === this.lastVideoTime) {
+    let width = 0;
+    let height = 0;
+
+    if (source instanceof HTMLVideoElement) {
+      if (source.readyState < 2) {
+        return { keypoints: null, dimensions: this.smoothedDimensions };
+      }
+      if (source.currentTime === this.lastVideoTime) {
+        return { keypoints: null, dimensions: this.smoothedDimensions };
+      }
+      this.lastVideoTime = source.currentTime;
+      width = source.videoWidth;
+      height = source.videoHeight;
+    } else if (source instanceof HTMLImageElement) {
+      if (!source.complete || !source.naturalWidth) {
+        return { keypoints: null, dimensions: this.smoothedDimensions };
+      }
+      width = source.naturalWidth;
+      height = source.naturalHeight;
+    } else if (source instanceof HTMLCanvasElement) {
+      width = source.width;
+      height = source.height;
+    }
+
+    if (width === 0 || height === 0) {
       return { keypoints: null, dimensions: this.smoothedDimensions };
     }
-    this.lastVideoTime = video.currentTime;
 
     try {
-      const result = this.landmarker.detectForVideo(video, timestampMs);
+      const result = this.landmarker.detectForVideo(source as any, timestampMs);
       if (!result || !result.landmarks || result.landmarks.length === 0) {
         return { keypoints: null, dimensions: this.smoothedDimensions };
       }
 
       const rawLandmarks = result.landmarks[0];
       const keypoints = this.extractKeypoints(rawLandmarks);
-      const dimensions = this.computeDimensions(keypoints, video.videoWidth, video.videoHeight);
+      const dimensions = this.computeDimensions(keypoints, width, height);
 
       return { keypoints, dimensions };
     } catch (err) {
@@ -192,7 +217,9 @@ export class PoseDetectionEngine {
       distanceEstimateM: 1.8,
       alignmentScore: 96,
       isAligned: true,
-      confidence: 0.98
+      confidence: 0.98,
+      scanPhase: 'locked',
+      stabilityProgress: 100
     };
 
     return { keypoints, dimensions: dims };
@@ -352,7 +379,9 @@ export class PoseDetectionEngine {
       distanceEstimateM: Number(smooth(distanceEstimateM, this.smoothedDimensions.distanceEstimateM).toFixed(2)),
       alignmentScore,
       isAligned,
-      confidence: kp.confidence
+      confidence: kp.confidence,
+      scanPhase: this.smoothedDimensions.scanPhase || 'scanning',
+      stabilityProgress: this.smoothedDimensions.stabilityProgress || 0
     };
 
     return this.smoothedDimensions;

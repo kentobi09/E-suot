@@ -1,4 +1,4 @@
-﻿export interface LandmarkPoint {
+export interface LandmarkPoint {
   x: number;
   y: number;
   z?: number;
@@ -34,6 +34,8 @@ export interface PoseKeypoints {
   confidence: number;
 }
 
+export type ScanPhase = 'scanning' | 'locked';
+
 export interface BodyDimensions {
   shoulderWidthCm: number;
   torsoLengthCm: number;
@@ -45,6 +47,8 @@ export interface BodyDimensions {
   alignmentScore: number;
   isAligned: boolean;
   confidence: number;
+  scanPhase: ScanPhase;
+  stabilityProgress: number; // 0 to 100%
 }
 
 export interface GarmentSizeSpec {
