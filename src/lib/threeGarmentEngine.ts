@@ -147,8 +147,8 @@ export class ThreeGarmentEngine {
 
         if (foundMesh) {
           const geom = (foundMesh as THREE.Mesh).geometry.clone();
-          // Translate collar point (Y = +0.261035) to origin (0, 0, 0)
-          geom.translate(0, -0.261035, 0);
+          // Translate front collar dip (Y = +0.205) to origin (0, 0, 0)
+          geom.translate(0, -0.200, 0);
           geom.computeVertexNormals();
 
           const meshMat = (foundMesh as THREE.Mesh).material;
@@ -1150,6 +1150,13 @@ export class ThreeGarmentEngine {
     if (this.canonicalAnchor) {
       this.canonicalAnchor.group.visible = true;
 
+      // Disable 2D billboard occlusion pass for 3D tops so it doesn't fight the 3D geometric occluder
+      if (this.occlusionPipeline) {
+        this.occlusionPipeline.setEnabled(false);
+      }
+
+      const yOffset = (garment.offsetYFactor || 0.0) * 0.1;
+
       // 1. Mount 3D Garment as a fixed child of the canonical torso anchor
       if (this.isShirtModelLoaded && this.shirtModelMesh) {
         if (!this.gltfActiveMesh) {
@@ -1173,6 +1180,7 @@ export class ThreeGarmentEngine {
 
         const sizeMult = (garment.scaleFactor || 1.0) * options.sizeMultiplier;
         this.gltfActiveMesh.scale.set(sizeMult, sizeMult, sizeMult);
+        this.gltfActiveMesh.position.set(0, yOffset, 0);
       } else {
         // Fallback procedural torso if GLB is loading
         if (!this.torsoMesh) {
@@ -1193,6 +1201,7 @@ export class ThreeGarmentEngine {
         }
         const sizeMult = (garment.scaleFactor || 1.0) * options.sizeMultiplier;
         this.torsoMesh.scale.set(sizeMult, sizeMult, sizeMult);
+        this.torsoMesh.position.set(0, yOffset, 0);
       }
 
       // 2. Custom chest print / uploaded image graphic overlay
@@ -1215,7 +1224,7 @@ export class ThreeGarmentEngine {
             depthWrite: false
           });
           this.chestGraphicMesh = new THREE.Mesh(patchGeom, patchMat);
-          this.chestGraphicMesh.position.set(0, -0.22, 0.135);
+          this.chestGraphicMesh.position.set(0, -0.18 + yOffset, 0.135);
           this.canonicalAnchor.getGarmentContainer().add(this.chestGraphicMesh);
         }
       } else if (this.chestGraphicMesh) {

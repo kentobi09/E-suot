@@ -28,13 +28,13 @@ export class CanonicalTorsoAnchor {
   // Canonical Reference Points (Standard Human Torso in Meters)
   // Origin (0, 0, 0) sits at the suprasternal collar notch
   public readonly canonicalPoints: THREE.Vector3[] = [
-    new THREE.Vector3(-0.19, -0.04, 0.0),    // 0: Left Shoulder
-    new THREE.Vector3(0.19, -0.04, 0.0),     // 1: Right Shoulder
+    new THREE.Vector3(-0.19, -0.03, 0.0),    // 0: Left Shoulder
+    new THREE.Vector3(0.19, -0.03, 0.0),     // 1: Right Shoulder
     new THREE.Vector3(0.0, 0.0, 0.0),        // 2: Suprasternal Collar Notch
-    new THREE.Vector3(-0.13, -0.52, 0.0),    // 3: Left Hip
-    new THREE.Vector3(0.13, -0.52, 0.0),     // 4: Right Hip
-    new THREE.Vector3(0.0, -0.52, 0.0),      // 5: Mid-Hip
-    new THREE.Vector3(0.0, -0.16, 0.04)      // 6: Mid-Chest
+    new THREE.Vector3(-0.13, -0.50, 0.0),    // 3: Left Hip
+    new THREE.Vector3(0.13, -0.50, 0.0),     // 4: Right Hip
+    new THREE.Vector3(0.0, -0.50, 0.0),      // 5: Mid-Hip
+    new THREE.Vector3(0.0, -0.15, 0.04)      // 6: Mid-Chest
   ];
 
   // 1-Euro Filters for Jitter-Free Tracking & Responsive Motion
@@ -63,9 +63,12 @@ export class CanonicalTorsoAnchor {
   }
 
   /**
-   * Constructs the invisible 3D neck and head geometric occluders
+   * Constructs the invisible 3D neck and chin geometric occluders
    * ColorWrite: false -> Invisible on screen
    * DepthWrite: true  -> Writes to WebGL Z-buffer before garment renders
+   * 
+   * Sized precisely so they sit inside the collar opening and chin without
+   * penetrating the front fabric of the shirt.
    */
   private build3DOccluders(): void {
     const occluderMat = new THREE.MeshBasicMaterial({
@@ -76,31 +79,28 @@ export class CanonicalTorsoAnchor {
     });
 
     // 1. Anatomical Neck Cylinder (frames the collar opening)
-    // Extends from collar (Y=0) upward past chin (Y=+0.16)
-    const neckRadius = 0.075;
-    const neckHeight = 0.22;
+    // Sized to fit comfortably inside the collar opening (collar opening r ~ 0.08 - 0.11m)
+    const neckRadius = 0.062;
+    const neckHeight = 0.24;
     const neckGeom = new THREE.CylinderGeometry(neckRadius * 0.95, neckRadius, neckHeight, 24);
-    neckGeom.translate(0, neckHeight / 2 - 0.02, -0.01);
+    // Extends from collar notch (y=0) upward to y=0.24
+    neckGeom.translate(0, neckHeight / 2, -0.015);
     const neckMesh = new THREE.Mesh(neckGeom, occluderMat);
     neckMesh.renderOrder = -1; // Must render before garment!
     this.occluderGroup.add(neckMesh);
 
     // 2. Chin & Jaw Capsule / Sphere
-    const chinRadius = 0.085;
+    const chinRadius = 0.075;
     const chinGeom = new THREE.SphereGeometry(chinRadius, 20, 16);
-    chinGeom.scale(1.0, 1.15, 1.25);
-    chinGeom.translate(0, 0.16, 0.03);
+    chinGeom.scale(1.0, 1.1, 1.15);
+    chinGeom.translate(0, 0.19, 0.02);
     const chinMesh = new THREE.Mesh(chinGeom, occluderMat);
     chinMesh.renderOrder = -1;
     this.occluderGroup.add(chinMesh);
 
-    // 3. Torso Core Ellipsoid (prevents back-of-shirt bleeding through front chest wall)
-    const coreGeom = new THREE.CylinderGeometry(0.16, 0.14, 0.46, 24);
-    coreGeom.scale(1.0, 1.0, 0.65);
-    coreGeom.translate(0, -0.24, -0.02);
-    const coreMesh = new THREE.Mesh(coreGeom, occluderMat);
-    coreMesh.renderOrder = -1;
-    this.occluderGroup.add(coreMesh);
+    // NOTE: Internal torso core occluder is omitted because the 3D shirt is an opaque
+    // mesh with depthTest enabled. An internal cylinder causes the chest to penetrate
+    // and carve holes through the front fabric.
   }
 
   /**
