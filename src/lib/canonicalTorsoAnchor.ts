@@ -38,9 +38,11 @@ export class CanonicalTorsoAnchor {
   ];
 
   // 1-Euro Filters for Jitter-Free Tracking & Responsive Motion
-  private posFilter = new OneEuroVector3Filter(1.2, 0.015);
-  private rotFilter = new OneEuroQuaternionFilter(1.0, 0.018);
-  private scaleFilter = new OneEuroFilter(1.0, 0.008);
+  // Stabilized specifically for AR clothing: scale is rock-solid (eliminates breathing/pulsing),
+  // position and rotation are butter-smooth when standing and responsive when moving.
+  private posFilter = new OneEuroVector3Filter(1.0, 0.025);
+  private rotFilter = new OneEuroQuaternionFilter(0.8, 0.020);
+  private scaleFilter = new OneEuroFilter(0.35, 0.001);
 
   private isInitialized = false;
 

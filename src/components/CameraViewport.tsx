@@ -483,7 +483,7 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
       if (currentKeypoints) {
         droppedFramesCountRef.current = 0;
         if (persistentKeypointsRef.current) {
-          persistentKeypointsRef.current = smoothPoseKeypoints(persistentKeypointsRef.current, currentKeypoints, 0.42);
+          persistentKeypointsRef.current = smoothPoseKeypoints(persistentKeypointsRef.current, currentKeypoints, 0.38);
         } else {
           persistentKeypointsRef.current = currentKeypoints;
         }

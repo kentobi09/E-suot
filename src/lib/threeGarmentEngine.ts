@@ -36,6 +36,18 @@ export class ThreeGarmentEngine {
   private isShirtModelLoaded: boolean = false;
   private isShirtModelLoading: boolean = false;
 
+  // Dynamic 3D Sleeve Arm-Tracking Controller
+  private shirtBasePositions: Float32Array | null = null;
+  private leftSleeveIndices: number[] = [];
+  private rightSleeveIndices: number[] = [];
+  private leftArmFilter: OneEuroQuaternionFilter = new OneEuroQuaternionFilter(1.5, 0.030);
+  private rightArmFilter: OneEuroQuaternionFilter = new OneEuroQuaternionFilter(1.5, 0.030);
+  private readonly restLeftArmDir = new THREE.Vector3(-0.452, -0.890, -0.061).normalize();
+  private readonly restRightArmDir = new THREE.Vector3(0.442, -0.895, -0.060).normalize();
+  private readonly pivotLeftShoulder = new THREE.Vector3(-0.185, -0.03, 0.0);
+  private readonly pivotRightShoulder = new THREE.Vector3(0.185, -0.03, 0.0);
+  private normalUpdateCounter: number = 0;
+
   // Multi-part 3D garment mesh components (Bottoms / Pants)
   private pantsWaistMesh: THREE.Mesh | null = null;
   private pantsLeftThighMesh: THREE.Mesh | null = null;
@@ -151,6 +163,17 @@ export class ThreeGarmentEngine {
           geom.translate(0, -0.200, 0);
           geom.computeVertexNormals();
 
+          // Cache rest pose vertex coordinates and pre-index sleeve vertices for real-time arm tracking
+          const posAttr = geom.attributes.position;
+          this.shirtBasePositions = new Float32Array(posAttr.array);
+          this.leftSleeveIndices = [];
+          this.rightSleeveIndices = [];
+          for (let i = 0; i < posAttr.count; i++) {
+            const x = this.shirtBasePositions[i * 3];
+            if (x < -0.15) this.leftSleeveIndices.push(i);
+            else if (x > 0.15) this.rightSleeveIndices.push(i);
+          }
+
           const meshMat = (foundMesh as THREE.Mesh).material;
           const rawMat = Array.isArray(meshMat) ? meshMat[0] : meshMat;
 
@@ -161,7 +184,7 @@ export class ThreeGarmentEngine {
           this.shirtModelMesh = new THREE.Mesh(geom, pbrMat);
           this.isShirtModelLoaded = true;
           this.isShirtModelLoading = false;
-          console.log('[ThreeGarmentEngine] 3D Baked Shirt Model loaded and ready.');
+          console.log('[ThreeGarmentEngine] 3D Baked Shirt Model loaded and ready with dynamic sleeve skinning.');
         }
       },
       undefined,
@@ -1178,7 +1201,8 @@ export class ThreeGarmentEngine {
         gltfMat.wireframe = options.wireframeOnly;
         gltfMat.side = THREE.DoubleSide;
 
-        const sizeMult = (garment.scaleFactor || 1.0) * options.sizeMultiplier;
+        const fitScale = 0.90; // Tailored biometric fit factor (removes loose/oversized gap)
+        const sizeMult = (garment.scaleFactor || 1.0) * options.sizeMultiplier * fitScale;
         this.gltfActiveMesh.scale.set(sizeMult, sizeMult, sizeMult);
         this.gltfActiveMesh.position.set(0, yOffset, 0);
       } else {
@@ -1199,7 +1223,8 @@ export class ThreeGarmentEngine {
           this.torsoMesh = new THREE.Mesh(torsoGeom, fabricMaterial);
           this.canonicalAnchor.attachGarment(this.torsoMesh);
         }
-        const sizeMult = (garment.scaleFactor || 1.0) * options.sizeMultiplier;
+        const fitScale = 0.90;
+        const sizeMult = (garment.scaleFactor || 1.0) * options.sizeMultiplier * fitScale;
         this.torsoMesh.scale.set(sizeMult, sizeMult, sizeMult);
         this.torsoMesh.position.set(0, yOffset, 0);
       }
@@ -1255,6 +1280,9 @@ export class ThreeGarmentEngine {
 
       // 4. Solve Optimal Procrustes SVD Matrix & Apply with 1-Euro Filter
       this.canonicalAnchor.update(trackedInput, now);
+
+      // 5. Dynamic Sleeve Kinematics: Arms of the shirt follow user's hands & elbows in real time
+      this.updateDynamicSleeves(kp, canvasWidth, canvasHeight, now);
     }
 
     // Dynamic key light follows yaw for subtle 3D studio highlights
@@ -1265,6 +1293,128 @@ export class ThreeGarmentEngine {
     // Render WebGL Scene
     this.renderer.render(this.scene, this.camera);
     return this.renderer.domElement;
+  }
+
+  /**
+   * Dynamically deforms the sleeves of the 3D shirt to track the user's arms and hands in real-time
+   */
+  private updateDynamicSleeves(
+    kp: PoseKeypoints,
+    canvasWidth: number,
+    canvasHeight: number,
+    now: number
+  ): void {
+    if (!this.gltfActiveMesh || !this.shirtBasePositions || !this.canonicalAnchor) return;
+    const posAttr = this.gltfActiveMesh.geometry.attributes.position;
+    if (!posAttr) return;
+
+    const arr = posAttr.array as Float32Array;
+    const base = this.shirtBasePositions;
+    const anchorQuatInv = this.canonicalAnchor.group.quaternion.clone().invert();
+
+    const toThree = (pt?: { x: number; y: number; z?: number }) => {
+      if (!pt) return null;
+      return new THREE.Vector3(
+        (pt.x - 0.5) * canvasWidth,
+        (0.5 - pt.y) * canvasHeight,
+        -(pt.z || 0) * canvasWidth * 0.45
+      );
+    };
+
+    // --- Left Arm Tracking ---
+    const vShL = toThree(kp.leftShoulder);
+    const vElbL = toThree(kp.leftElbow);
+    const vWriL = toThree(kp.leftWrist);
+
+    let targetQuatL = new THREE.Quaternion();
+    if (vShL && vElbL && (kp.leftElbow?.visibility || 0.5) > 0.35) {
+      const worldArmL = new THREE.Vector3().subVectors(vElbL, vShL);
+      if (vWriL && (kp.leftWrist?.visibility || 0.5) > 0.35) {
+        const worldHandL = new THREE.Vector3().subVectors(vWriL, vShL);
+        worldArmL.multiplyScalar(0.60).addScaledVector(worldHandL, 0.40);
+      }
+      if (worldArmL.lengthSq() > 10) {
+        const localArmL = worldArmL.normalize().applyQuaternion(anchorQuatInv).normalize();
+        const dotL = localArmL.dot(this.restLeftArmDir);
+        if (dotL > -0.85) {
+          targetQuatL.setFromUnitVectors(this.restLeftArmDir, localArmL);
+        }
+      }
+    }
+    const smoothQuatL = this.leftArmFilter.filter(targetQuatL, now);
+
+    // --- Right Arm Tracking ---
+    const vShR = toThree(kp.rightShoulder);
+    const vElbR = toThree(kp.rightElbow);
+    const vWriR = toThree(kp.rightWrist);
+
+    let targetQuatR = new THREE.Quaternion();
+    if (vShR && vElbR && (kp.rightElbow?.visibility || 0.5) > 0.35) {
+      const worldArmR = new THREE.Vector3().subVectors(vElbR, vShR);
+      if (vWriR && (kp.rightWrist?.visibility || 0.5) > 0.35) {
+        const worldHandR = new THREE.Vector3().subVectors(vWriR, vShR);
+        worldArmR.multiplyScalar(0.60).addScaledVector(worldHandR, 0.40);
+      }
+      if (worldArmR.lengthSq() > 10) {
+        const localArmR = worldArmR.normalize().applyQuaternion(anchorQuatInv).normalize();
+        const dotR = localArmR.dot(this.restRightArmDir);
+        if (dotR > -0.85) {
+          targetQuatR.setFromUnitVectors(this.restRightArmDir, localArmR);
+        }
+      }
+    }
+    const smoothQuatR = this.rightArmFilter.filter(targetQuatR, now);
+
+    // Apply Linear Blend Skinning (LBS) to sleeve vertices around shoulder pivots
+    const qIdent = new THREE.Quaternion();
+    const qBlend = new THREE.Quaternion();
+    const v = new THREE.Vector3();
+
+    // 1. Left Sleeve vertices (deforms towards user's left arm/hand)
+    for (let k = 0; k < this.leftSleeveIndices.length; k++) {
+      const i = this.leftSleeveIndices[k];
+      const idx = i * 3;
+      const origX = base[idx];
+      const t = Math.min(1.0, Math.max(0.0, (-origX - 0.15) / 0.05));
+      const w = t * t * (3 - 2 * t);
+      qBlend.copy(qIdent).slerp(smoothQuatL, w);
+
+      v.set(base[idx], base[idx + 1], base[idx + 2]);
+      v.sub(this.pivotLeftShoulder);
+      v.applyQuaternion(qBlend);
+      v.add(this.pivotLeftShoulder);
+
+      arr[idx] = v.x;
+      arr[idx + 1] = v.y;
+      arr[idx + 2] = v.z;
+    }
+
+    // 2. Right Sleeve vertices (deforms towards user's right arm/hand)
+    for (let k = 0; k < this.rightSleeveIndices.length; k++) {
+      const i = this.rightSleeveIndices[k];
+      const idx = i * 3;
+      const origX = base[idx];
+      const t = Math.min(1.0, Math.max(0.0, (origX - 0.15) / 0.05));
+      const w = t * t * (3 - 2 * t);
+      qBlend.copy(qIdent).slerp(smoothQuatR, w);
+
+      v.set(base[idx], base[idx + 1], base[idx + 2]);
+      v.sub(this.pivotRightShoulder);
+      v.applyQuaternion(qBlend);
+      v.add(this.pivotRightShoulder);
+
+      arr[idx] = v.x;
+      arr[idx + 1] = v.y;
+      arr[idx + 2] = v.z;
+    }
+
+    posAttr.needsUpdate = true;
+
+    // Update normals periodically to maintain photorealistic studio specular highlights
+    this.normalUpdateCounter = (this.normalUpdateCounter + 1) % 3;
+    if (this.normalUpdateCounter === 0) {
+      this.gltfActiveMesh.geometry.computeVertexNormals();
+    }
   }
 }
 
