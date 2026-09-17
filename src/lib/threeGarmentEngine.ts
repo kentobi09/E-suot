@@ -29,6 +29,7 @@ export class ThreeGarmentEngine {
   private rightShoulderCapMesh: THREE.Mesh | null = null;
   private collarMesh: THREE.Mesh | null = null;
   private chestGraphicMesh: THREE.Mesh | null = null;
+  private neckOccluderMesh: THREE.Mesh | null = null;
 
   // Preloaded True 3D GLB Garment Assets (High-Fidelity Photorealistic Mesh)
   private shirtModelMesh: THREE.Mesh | null = null;
@@ -1020,6 +1021,11 @@ export class ThreeGarmentEngine {
         this.chestGraphicMesh.geometry.dispose();
         this.chestGraphicMesh = null;
       }
+      if (this.neckOccluderMesh) {
+        this.pivotGroup.remove(this.neckOccluderMesh);
+        this.neckOccluderMesh.geometry.dispose();
+        this.neckOccluderMesh = null;
+      }
       if (this.gltfActiveMesh) {
         this.pivotGroup.remove(this.gltfActiveMesh);
         this.gltfActiveMesh = null;
@@ -1150,6 +1156,12 @@ export class ThreeGarmentEngine {
     // =============================================================
     // BRANCH B: 3D TOPS / SHIRTS KINEMATICS & JOINT BRIDGING
     // =============================================================
+    // Hide canonicalAnchor, activate pivotGroup
+    if (this.canonicalAnchor) {
+      this.canonicalAnchor.group.visible = false;
+    }
+    this.pivotGroup.visible = true;
+
     // Remove any active pants meshes
     if (this.pantsWaistMesh) {
       this.pivotGroup.remove(this.pantsWaistMesh);
@@ -1166,123 +1178,268 @@ export class ThreeGarmentEngine {
       this.pantsRightThighMesh.geometry.dispose();
       this.pantsRightThighMesh = null;
     }
+    if (this.pantsLeftCalfMesh) {
+      this.pivotGroup.remove(this.pantsLeftCalfMesh);
+      this.pantsLeftCalfMesh.geometry.dispose();
+      this.pantsLeftCalfMesh = null;
+    }
+    if (this.pantsRightCalfMesh) {
+      this.pivotGroup.remove(this.pantsRightCalfMesh);
+      this.pantsRightCalfMesh.geometry.dispose();
+      this.pantsRightCalfMesh = null;
+    }
+    if (this.gltfActiveMesh) {
+      this.pivotGroup.remove(this.gltfActiveMesh);
+      this.gltfActiveMesh = null;
+    }
 
-    // Hide pivotGroup, activate canonicalAnchor
-    this.pivotGroup.visible = false;
+    // Determine screen-left and screen-right shoulder & arm landmarks
+    // (Works identically for mirrored front selfie camera and unmirrored rear camera)
+    const isShLeftKpLeft = kp.leftShoulder.x <= kp.rightShoulder.x;
+    const shScreenLeft = isShLeftKpLeft ? kp.leftShoulder : kp.rightShoulder;
+    const shScreenRight = isShLeftKpLeft ? kp.rightShoulder : kp.leftShoulder;
+    const elbowScreenLeft = isShLeftKpLeft ? kp.leftElbow : kp.rightElbow;
+    const elbowScreenRight = isShLeftKpLeft ? kp.rightElbow : kp.leftElbow;
+    const wristScreenLeft = isShLeftKpLeft ? kp.leftWrist : kp.rightWrist;
+    const wristScreenRight = isShLeftKpLeft ? kp.rightWrist : kp.leftWrist;
 
-    if (this.canonicalAnchor) {
-      this.canonicalAnchor.group.visible = true;
+    const shLeftX = shScreenLeft.x * canvasWidth;
+    const shLeftY = shScreenLeft.y * canvasHeight;
+    const shRightX = shScreenRight.x * canvasWidth;
+    const shRightY = shScreenRight.y * canvasHeight;
 
-      // Disable 2D billboard occlusion pass for 3D tops so it doesn't fight the 3D geometric occluder
-      if (this.occlusionPipeline) {
-        this.occlusionPipeline.setEnabled(false);
+    const dx = shRightX - shLeftX;
+    const dy = shRightY - shLeftY;
+    const shoulderSpan = Math.hypot(dx, dy);
+
+    // Shoulder roll angle (tilt of shoulders)
+    const rawAngle = Math.atan2(dy, dx);
+    const maxTilt = (35 * Math.PI) / 180;
+    const rollAngle = Math.max(-maxTilt, Math.min(maxTilt, rawAngle));
+
+    const shMidX = (shLeftX + shRightX) / 2;
+    const shMidY = (shLeftY + shRightY) / 2;
+
+    // Upward perpendicular unit vector from shoulder line towards head
+    const upX = Math.sin(rollAngle);
+    const upY = -Math.cos(rollAngle);
+
+    // Suprasternal notch collar position (elevation above shoulder line to natural neckline)
+    const neckElev = shoulderSpan * 0.10;
+    const collarCanvasX = shMidX + upX * neckElev;
+    const collarCanvasY = shMidY + upY * neckElev + (garment.offsetYFactor || 0) * canvasHeight;
+
+    // Three.js coordinates (origin at center)
+    const threeCollarX = collarCanvasX - canvasWidth / 2;
+    const threeCollarY = canvasHeight / 2 - collarCanvasY;
+
+    // Biometric garment dimensions: tailored fit that seamlessly matches the user's anatomy
+    const garmentWidth = shoulderSpan * 1.08 * (garment.scaleFactor || 1.0) * options.sizeMultiplier;
+
+    const neckToHipSpan = Math.hypot(
+      (kp.midHip.x - kp.neckBase.x) * canvasWidth,
+      (kp.midHip.y - kp.neckBase.y) * canvasHeight
+    );
+    const garmentHeight = Math.max(garmentWidth * 1.10, neckToHipSpan * 1.12 * options.sizeMultiplier);
+
+    const chestDepth = Math.max(38, Math.min(90, shoulderSpan * 0.28));
+
+    // PBR standard material: procedural fabric diffuse / SVG texture + micro-weave normal map
+    const fabricDiffuse = (garment.imageUrl && (garment.imageUrl.startsWith('data:') || garment.imageUrl.startsWith('blob:') || garment.imageUrl.startsWith('http') || garment.imageUrl.startsWith('/')))
+      ? this.getTexture(garment.imageUrl, imageSource)
+      : this.generateFabricDiffuseTexture(garment);
+
+    const normalMap = this.fabricNormalTexture;
+
+    const fabricMaterial = new THREE.MeshStandardMaterial({
+      map: fabricDiffuse,
+      normalMap: normalMap || undefined,
+      normalScale: new THREE.Vector2(0.80, 0.80),
+      roughness: 0.82,
+      metalness: 0.02,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: options.opacity,
+      wireframe: options.wireframeOnly
+    });
+
+    // 1. Build / Update 360° Anatomical Volumetric Torso
+    if (this.torsoMesh) {
+      this.pivotGroup.remove(this.torsoMesh);
+      this.torsoMesh.geometry.dispose();
+      this.torsoMesh = null;
+    }
+    const torsoGeom = this.createVolumetricTorsoGeometry(garmentWidth, garmentHeight, chestDepth);
+    this.torsoMesh = new THREE.Mesh(torsoGeom, fabricMaterial);
+    this.pivotGroup.add(this.torsoMesh);
+
+    // 2. Build / Update 3D Collar Ring Mesh
+    if (this.collarMesh) {
+      this.pivotGroup.remove(this.collarMesh);
+      this.collarMesh.geometry.dispose();
+      this.collarMesh = null;
+    }
+    const collarGeom = this.createCollarGeometry(garmentWidth * 0.17, chestDepth * 0.60, garmentWidth * 0.032);
+    this.collarMesh = new THREE.Mesh(collarGeom, fabricMaterial);
+    this.pivotGroup.add(this.collarMesh);
+
+    // 3. Invisible 3D Neck Occluder (clips back collar behind user's real neck/chin)
+    if (this.neckOccluderMesh) {
+      this.pivotGroup.remove(this.neckOccluderMesh);
+      this.neckOccluderMesh.geometry.dispose();
+      this.neckOccluderMesh = null;
+    }
+    const neckRadius = garmentWidth * 0.155;
+    const neckHeight = garmentHeight * 0.35;
+    const neckGeom = new THREE.CylinderGeometry(neckRadius * 0.90, neckRadius, neckHeight, 24);
+    neckGeom.translate(0, neckHeight * 0.45, -chestDepth * 0.05);
+    const neckOccluderMat = new THREE.MeshBasicMaterial({
+      colorWrite: false, // Invisible
+      depthWrite: true,  // Writes to Z-buffer so back collar is occluded
+      depthTest: true,
+      side: THREE.DoubleSide
+    });
+    this.neckOccluderMesh = new THREE.Mesh(neckGeom, neckOccluderMat);
+    this.neckOccluderMesh.renderOrder = -1; // Must render before garment!
+    this.pivotGroup.add(this.neckOccluderMesh);
+
+    // 4. Position & Orient Global Pivot with 1-Euro Filters
+    const filteredPos = this.rootJitterFilter.filter(new THREE.Vector3(threeCollarX, threeCollarY, 0), now);
+    this.pivotGroup.position.copy(filteredPos);
+
+    const rawEuler = new THREE.Euler(-pitchAngle, yawAngle, -rollAngle, 'ZYX');
+    const rawQuat = new THREE.Quaternion().setFromEuler(rawEuler);
+    const filteredQuat = this.yawJitterFilter.filter(rawQuat, now);
+    this.pivotGroup.quaternion.copy(filteredQuat);
+
+    const pivotInvQuat = this.pivotGroup.quaternion.clone().invert();
+
+    // 5. Dynamic Rigid Sleeves & Deltoid Shoulder Caps (Tracks arms without vertex distortion)
+    const isLongSleeve = garment.category === 'outerwear' || garment.id.includes('oxford') || garment.name.toLowerCase().includes('long');
+    const sleeveTopRadius = shoulderSpan * 0.165;
+    const sleeveCuffRadius = shoulderSpan * (isLongSleeve ? 0.12 : 0.135);
+    const sleeveLength = shoulderSpan * (isLongSleeve ? 1.20 : 0.58);
+
+    const leftShoulderLocalX = -garmentWidth * 0.44;
+    const leftShoulderLocalY = -garmentHeight * 0.05;
+    const rightShoulderLocalX = garmentWidth * 0.44;
+    const rightShoulderLocalY = -garmentHeight * 0.05;
+
+    // --- Screen-Left Shoulder Cap (Deltoid Bridge) ---
+    if (this.leftShoulderCapMesh) {
+      this.pivotGroup.remove(this.leftShoulderCapMesh);
+      this.leftShoulderCapMesh.geometry.dispose();
+      this.leftShoulderCapMesh = null;
+    }
+    const leftCapGeom = this.createShoulderCapGeometry(sleeveTopRadius * 1.04);
+    this.leftShoulderCapMesh = new THREE.Mesh(leftCapGeom, fabricMaterial);
+    this.leftShoulderCapMesh.position.set(leftShoulderLocalX, leftShoulderLocalY, 0);
+    this.pivotGroup.add(this.leftShoulderCapMesh);
+
+    // --- Screen-Left Sleeve (Rigid hollow cylinder: zero ballooning, zero expansion) ---
+    if (this.leftSleeveMesh) {
+      this.pivotGroup.remove(this.leftSleeveMesh);
+      this.leftSleeveMesh.geometry.dispose();
+      this.leftSleeveMesh = null;
+    }
+    const leftSleeveGeom = this.createSleeveGeometry(sleeveTopRadius, sleeveCuffRadius, sleeveLength);
+    this.leftSleeveMesh = new THREE.Mesh(leftSleeveGeom, fabricMaterial);
+    this.leftSleeveMesh.position.set(leftShoulderLocalX, leftShoulderLocalY, 0);
+
+    let worldLeftArmDir = new THREE.Vector3(-0.35, -0.93, 0.05).normalize();
+    if (elbowScreenLeft && (elbowScreenLeft.visibility || 0.5) > 0.30) {
+      const dxElb = (elbowScreenLeft.x - shScreenLeft.x) * canvasWidth;
+      const dyElb = -(elbowScreenLeft.y - shScreenLeft.y) * canvasHeight;
+      const dzElb = -((elbowScreenLeft.z || 0) - (shScreenLeft.z || 0)) * canvasWidth * 0.45;
+      const vElb = new THREE.Vector3(dxElb, dyElb, dzElb);
+
+      if (wristScreenLeft && (wristScreenLeft.visibility || 0.5) > 0.30) {
+        const dxWri = (wristScreenLeft.x - shScreenLeft.x) * canvasWidth;
+        const dyWri = -(wristScreenLeft.y - shScreenLeft.y) * canvasHeight;
+        const dzWri = -((wristScreenLeft.z || 0) - (shScreenLeft.z || 0)) * canvasWidth * 0.45;
+        const vWri = new THREE.Vector3(dxWri, dyWri, dzWri);
+        vElb.multiplyScalar(0.60).addScaledVector(vWri, 0.40);
       }
 
-      const yOffset = (garment.offsetYFactor || 0.0) * 0.1;
+      if (vElb.lengthSq() > 25) {
+        worldLeftArmDir = vElb.normalize();
+      }
+    }
+    const localLeftArmDir = worldLeftArmDir.applyQuaternion(pivotInvQuat).normalize();
+    const targetLeftQuat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, -1, 0), localLeftArmDir);
+    const smoothLeftQuat = this.leftArmFilter.filter(targetLeftQuat, now);
+    this.leftSleeveMesh.quaternion.copy(smoothLeftQuat);
+    this.pivotGroup.add(this.leftSleeveMesh);
 
-      // 1. Mount 3D Garment as a fixed child of the canonical torso anchor
-      if (this.isShirtModelLoaded && this.shirtModelMesh) {
-        if (!this.gltfActiveMesh) {
-          if (this.torsoMesh) {
-            this.torsoMesh.geometry.dispose();
-            this.torsoMesh = null;
-          }
-          const mat = (this.shirtModelMesh.material as THREE.MeshStandardMaterial).clone();
-          this.gltfActiveMesh = new THREE.Mesh(this.shirtModelMesh.geometry, mat);
-          this.canonicalAnchor.attachGarment(this.gltfActiveMesh);
-        }
+    // --- Screen-Right Shoulder Cap (Deltoid Bridge) ---
+    if (this.rightShoulderCapMesh) {
+      this.pivotGroup.remove(this.rightShoulderCapMesh);
+      this.rightShoulderCapMesh.geometry.dispose();
+      this.rightShoulderCapMesh = null;
+    }
+    const rightCapGeom = this.createShoulderCapGeometry(sleeveTopRadius * 1.04);
+    this.rightShoulderCapMesh = new THREE.Mesh(rightCapGeom, fabricMaterial);
+    this.rightShoulderCapMesh.position.set(rightShoulderLocalX, rightShoulderLocalY, 0);
+    this.pivotGroup.add(this.rightShoulderCapMesh);
 
-        const gltfMat = this.gltfActiveMesh.material as THREE.MeshStandardMaterial;
-        gltfMat.color.setStyle(garment.hex);
-        gltfMat.roughness = 0.65;
-        gltfMat.metalness = 0.04;
-        gltfMat.opacity = options.opacity;
-        gltfMat.transparent = true;
-        gltfMat.wireframe = options.wireframeOnly;
-        gltfMat.side = THREE.DoubleSide;
+    // --- Screen-Right Sleeve (Rigid hollow cylinder: zero ballooning, zero expansion) ---
+    if (this.rightSleeveMesh) {
+      this.pivotGroup.remove(this.rightSleeveMesh);
+      this.rightSleeveMesh.geometry.dispose();
+      this.rightSleeveMesh = null;
+    }
+    const rightSleeveGeom = this.createSleeveGeometry(sleeveTopRadius, sleeveCuffRadius, sleeveLength);
+    this.rightSleeveMesh = new THREE.Mesh(rightSleeveGeom, fabricMaterial);
+    this.rightSleeveMesh.position.set(rightShoulderLocalX, rightShoulderLocalY, 0);
 
-        const fitScale = 0.90; // Tailored biometric fit factor (removes loose/oversized gap)
-        const sizeMult = (garment.scaleFactor || 1.0) * options.sizeMultiplier * fitScale;
-        this.gltfActiveMesh.scale.set(sizeMult, sizeMult, sizeMult);
-        this.gltfActiveMesh.position.set(0, yOffset, 0);
-      } else {
-        // Fallback procedural torso if GLB is loading
-        if (!this.torsoMesh) {
-          const torsoGeom = new THREE.CylinderGeometry(0.24, 0.22, 0.65, 24, 16, true);
-          torsoGeom.translate(0, -0.32, 0);
-          const fabricDiffuse = this.generateFabricDiffuseTexture(garment);
-          const fabricMaterial = new THREE.MeshStandardMaterial({
-            map: fabricDiffuse,
-            roughness: 0.82,
-            metalness: 0.02,
-            side: THREE.DoubleSide,
-            transparent: true,
-            opacity: options.opacity,
-            wireframe: options.wireframeOnly
-          });
-          this.torsoMesh = new THREE.Mesh(torsoGeom, fabricMaterial);
-          this.canonicalAnchor.attachGarment(this.torsoMesh);
-        }
-        const fitScale = 0.90;
-        const sizeMult = (garment.scaleFactor || 1.0) * options.sizeMultiplier * fitScale;
-        this.torsoMesh.scale.set(sizeMult, sizeMult, sizeMult);
-        this.torsoMesh.position.set(0, yOffset, 0);
+    let worldRightArmDir = new THREE.Vector3(0.35, -0.93, 0.05).normalize();
+    if (elbowScreenRight && (elbowScreenRight.visibility || 0.5) > 0.30) {
+      const dxElb = (elbowScreenRight.x - shScreenRight.x) * canvasWidth;
+      const dyElb = -(elbowScreenRight.y - shScreenRight.y) * canvasHeight;
+      const dzElb = -((elbowScreenRight.z || 0) - (shScreenRight.z || 0)) * canvasWidth * 0.45;
+      const vElb = new THREE.Vector3(dxElb, dyElb, dzElb);
+
+      if (wristScreenRight && (wristScreenRight.visibility || 0.5) > 0.30) {
+        const dxWri = (wristScreenRight.x - shScreenRight.x) * canvasWidth;
+        const dyWri = -(wristScreenRight.y - shScreenRight.y) * canvasHeight;
+        const dzWri = -((wristScreenRight.z || 0) - (shScreenRight.z || 0)) * canvasWidth * 0.45;
+        const vWri = new THREE.Vector3(dxWri, dyWri, dzWri);
+        vElb.multiplyScalar(0.60).addScaledVector(vWri, 0.40);
       }
 
-      // 2. Custom chest print / uploaded image graphic overlay
-      if (garment.id.startsWith('custom-') || garment.imageUrl.startsWith('blob:')) {
-        if (!this.chestGraphicMesh) {
-          const patchGeom = new THREE.PlaneGeometry(0.26, 0.28, 16, 16);
-          const pos = patchGeom.attributes.position;
-          for (let i = 0; i < pos.count; i++) {
-            const x = pos.getX(i);
-            pos.setZ(i, Math.cos(x * 5.0) * 0.025);
-          }
-          patchGeom.computeVertexNormals();
+      if (vElb.lengthSq() > 25) {
+        worldRightArmDir = vElb.normalize();
+      }
+    }
+    const localRightArmDir = worldRightArmDir.applyQuaternion(pivotInvQuat).normalize();
+    const targetRightQuat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, -1, 0), localRightArmDir);
+    const smoothRightQuat = this.rightArmFilter.filter(targetRightQuat, now);
+    this.rightSleeveMesh.quaternion.copy(smoothRightQuat);
+    this.pivotGroup.add(this.rightSleeveMesh);
 
-          const customTex = this.getTexture(garment.imageUrl, imageSource);
-          customTex.needsUpdate = true;
-          const patchMat = new THREE.MeshBasicMaterial({
-            map: customTex,
-            transparent: true,
-            opacity: options.opacity,
-            depthWrite: false
-          });
-          this.chestGraphicMesh = new THREE.Mesh(patchGeom, patchMat);
-          this.chestGraphicMesh.position.set(0, -0.18 + yOffset, 0.135);
-          this.canonicalAnchor.getGarmentContainer().add(this.chestGraphicMesh);
-        }
-      } else if (this.chestGraphicMesh) {
-        if (this.chestGraphicMesh.parent) {
-          this.chestGraphicMesh.parent.remove(this.chestGraphicMesh);
-        }
+    // 6. Custom Chest Print / Uploaded Graphic Overlay (if applicable)
+    if (garment.id.startsWith('custom-') || garment.imageUrl.startsWith('blob:')) {
+      if (this.chestGraphicMesh) {
+        this.pivotGroup.remove(this.chestGraphicMesh);
         this.chestGraphicMesh.geometry.dispose();
         this.chestGraphicMesh = null;
       }
+      const customTex = this.getTexture(garment.imageUrl, imageSource);
+      customTex.needsUpdate = true;
 
-      // 3. Extract Live Tracked 3D Points in Screen Space
-      const toThreeCoords = (pt: { x: number; y: number; z?: number }) => {
-        const x = (pt.x - 0.5) * canvasWidth;
-        const y = (0.5 - pt.y) * canvasHeight;
-        const z = -(pt.z || 0) * canvasWidth * 0.45;
-        return new THREE.Vector3(x, y, z);
-      };
-
-      const trackedInput: TrackedLandmarksInput = {
-        leftShoulder: toThreeCoords(kp.leftShoulder),
-        rightShoulder: toThreeCoords(kp.rightShoulder),
-        neckBase: toThreeCoords(kp.neckBase),
-        leftHip: toThreeCoords(kp.leftHip),
-        rightHip: toThreeCoords(kp.rightHip),
-        midHip: toThreeCoords(kp.midHip),
-        chestMid: toThreeCoords(kp.chestMid)
-      };
-
-      // 4. Solve Optimal Procrustes SVD Matrix & Apply with 1-Euro Filter
-      this.canonicalAnchor.update(trackedInput, now);
-
-      // 5. Dynamic Sleeve Kinematics: Arms of the shirt follow user's hands & elbows in real time
-      this.updateDynamicSleeves(kp, canvasWidth, canvasHeight, now);
+      const chestPatchGeom = this.createChestGraphicGeometry(garmentWidth, garmentHeight, chestDepth, false);
+      const chestPatchMat = new THREE.MeshBasicMaterial({
+        map: customTex,
+        transparent: true,
+        opacity: options.opacity,
+        depthWrite: false
+      });
+      this.chestGraphicMesh = new THREE.Mesh(chestPatchGeom, chestPatchMat);
+      this.pivotGroup.add(this.chestGraphicMesh);
+    } else if (this.chestGraphicMesh) {
+      this.pivotGroup.remove(this.chestGraphicMesh);
+      this.chestGraphicMesh.geometry.dispose();
+      this.chestGraphicMesh = null;
     }
 
     // Dynamic key light follows yaw for subtle 3D studio highlights
@@ -1293,128 +1450,6 @@ export class ThreeGarmentEngine {
     // Render WebGL Scene
     this.renderer.render(this.scene, this.camera);
     return this.renderer.domElement;
-  }
-
-  /**
-   * Dynamically deforms the sleeves of the 3D shirt to track the user's arms and hands in real-time
-   */
-  private updateDynamicSleeves(
-    kp: PoseKeypoints,
-    canvasWidth: number,
-    canvasHeight: number,
-    now: number
-  ): void {
-    if (!this.gltfActiveMesh || !this.shirtBasePositions || !this.canonicalAnchor) return;
-    const posAttr = this.gltfActiveMesh.geometry.attributes.position;
-    if (!posAttr) return;
-
-    const arr = posAttr.array as Float32Array;
-    const base = this.shirtBasePositions;
-    const anchorQuatInv = this.canonicalAnchor.group.quaternion.clone().invert();
-
-    const toThree = (pt?: { x: number; y: number; z?: number }) => {
-      if (!pt) return null;
-      return new THREE.Vector3(
-        (pt.x - 0.5) * canvasWidth,
-        (0.5 - pt.y) * canvasHeight,
-        -(pt.z || 0) * canvasWidth * 0.45
-      );
-    };
-
-    // --- Left Arm Tracking ---
-    const vShL = toThree(kp.leftShoulder);
-    const vElbL = toThree(kp.leftElbow);
-    const vWriL = toThree(kp.leftWrist);
-
-    let targetQuatL = new THREE.Quaternion();
-    if (vShL && vElbL && (kp.leftElbow?.visibility || 0.5) > 0.35) {
-      const worldArmL = new THREE.Vector3().subVectors(vElbL, vShL);
-      if (vWriL && (kp.leftWrist?.visibility || 0.5) > 0.35) {
-        const worldHandL = new THREE.Vector3().subVectors(vWriL, vShL);
-        worldArmL.multiplyScalar(0.60).addScaledVector(worldHandL, 0.40);
-      }
-      if (worldArmL.lengthSq() > 10) {
-        const localArmL = worldArmL.normalize().applyQuaternion(anchorQuatInv).normalize();
-        const dotL = localArmL.dot(this.restLeftArmDir);
-        if (dotL > -0.85) {
-          targetQuatL.setFromUnitVectors(this.restLeftArmDir, localArmL);
-        }
-      }
-    }
-    const smoothQuatL = this.leftArmFilter.filter(targetQuatL, now);
-
-    // --- Right Arm Tracking ---
-    const vShR = toThree(kp.rightShoulder);
-    const vElbR = toThree(kp.rightElbow);
-    const vWriR = toThree(kp.rightWrist);
-
-    let targetQuatR = new THREE.Quaternion();
-    if (vShR && vElbR && (kp.rightElbow?.visibility || 0.5) > 0.35) {
-      const worldArmR = new THREE.Vector3().subVectors(vElbR, vShR);
-      if (vWriR && (kp.rightWrist?.visibility || 0.5) > 0.35) {
-        const worldHandR = new THREE.Vector3().subVectors(vWriR, vShR);
-        worldArmR.multiplyScalar(0.60).addScaledVector(worldHandR, 0.40);
-      }
-      if (worldArmR.lengthSq() > 10) {
-        const localArmR = worldArmR.normalize().applyQuaternion(anchorQuatInv).normalize();
-        const dotR = localArmR.dot(this.restRightArmDir);
-        if (dotR > -0.85) {
-          targetQuatR.setFromUnitVectors(this.restRightArmDir, localArmR);
-        }
-      }
-    }
-    const smoothQuatR = this.rightArmFilter.filter(targetQuatR, now);
-
-    // Apply Linear Blend Skinning (LBS) to sleeve vertices around shoulder pivots
-    const qIdent = new THREE.Quaternion();
-    const qBlend = new THREE.Quaternion();
-    const v = new THREE.Vector3();
-
-    // 1. Left Sleeve vertices (deforms towards user's left arm/hand)
-    for (let k = 0; k < this.leftSleeveIndices.length; k++) {
-      const i = this.leftSleeveIndices[k];
-      const idx = i * 3;
-      const origX = base[idx];
-      const t = Math.min(1.0, Math.max(0.0, (-origX - 0.15) / 0.05));
-      const w = t * t * (3 - 2 * t);
-      qBlend.copy(qIdent).slerp(smoothQuatL, w);
-
-      v.set(base[idx], base[idx + 1], base[idx + 2]);
-      v.sub(this.pivotLeftShoulder);
-      v.applyQuaternion(qBlend);
-      v.add(this.pivotLeftShoulder);
-
-      arr[idx] = v.x;
-      arr[idx + 1] = v.y;
-      arr[idx + 2] = v.z;
-    }
-
-    // 2. Right Sleeve vertices (deforms towards user's right arm/hand)
-    for (let k = 0; k < this.rightSleeveIndices.length; k++) {
-      const i = this.rightSleeveIndices[k];
-      const idx = i * 3;
-      const origX = base[idx];
-      const t = Math.min(1.0, Math.max(0.0, (origX - 0.15) / 0.05));
-      const w = t * t * (3 - 2 * t);
-      qBlend.copy(qIdent).slerp(smoothQuatR, w);
-
-      v.set(base[idx], base[idx + 1], base[idx + 2]);
-      v.sub(this.pivotRightShoulder);
-      v.applyQuaternion(qBlend);
-      v.add(this.pivotRightShoulder);
-
-      arr[idx] = v.x;
-      arr[idx + 1] = v.y;
-      arr[idx + 2] = v.z;
-    }
-
-    posAttr.needsUpdate = true;
-
-    // Update normals periodically to maintain photorealistic studio specular highlights
-    this.normalUpdateCounter = (this.normalUpdateCounter + 1) % 3;
-    if (this.normalUpdateCounter === 0) {
-      this.gltfActiveMesh.geometry.computeVertexNormals();
-    }
   }
 }
 
