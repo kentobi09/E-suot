@@ -1153,6 +1153,10 @@ export class ThreeGarmentEngine {
       // 1. Mount 3D Garment as a fixed child of the canonical torso anchor
       if (this.isShirtModelLoaded && this.shirtModelMesh) {
         if (!this.gltfActiveMesh) {
+          if (this.torsoMesh) {
+            this.torsoMesh.geometry.dispose();
+            this.torsoMesh = null;
+          }
           const mat = (this.shirtModelMesh.material as THREE.MeshStandardMaterial).clone();
           this.gltfActiveMesh = new THREE.Mesh(this.shirtModelMesh.geometry, mat);
           this.canonicalAnchor.attachGarment(this.gltfActiveMesh);
@@ -1187,6 +1191,8 @@ export class ThreeGarmentEngine {
           this.torsoMesh = new THREE.Mesh(torsoGeom, fabricMaterial);
           this.canonicalAnchor.attachGarment(this.torsoMesh);
         }
+        const sizeMult = (garment.scaleFactor || 1.0) * options.sizeMultiplier;
+        this.torsoMesh.scale.set(sizeMult, sizeMult, sizeMult);
       }
 
       // 2. Custom chest print / uploaded image graphic overlay

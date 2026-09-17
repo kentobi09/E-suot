@@ -1,4 +1,4 @@
-﻿import * as THREE from 'three';
+import * as THREE from 'three';
 
 export interface ProcrustesResult {
   matrix: THREE.Matrix4;
@@ -211,8 +211,8 @@ export function solveProcrustes(
 
   // 6. Optimal Scale Factor s = tr(D * S) / varSrc
   let s = (S[0] * D[0] + S[1] * D[1] + S[2] * D[2]) / (varSrc || 1);
-  // Sanity clamp on scale to prevent extreme blowup or vanishing
-  s = Math.max(0.01, Math.min(100.0, s));
+  // Sanity clamp on scale: in pixel-space AR, scale is typically 200 - 5000 (pixels/meter)
+  s = Math.max(10.0, Math.min(10000.0, s));
 
   // 7. Optimal Translation Vector t = muDst - s * R * muSrc
   const sRmuSrc = new THREE.Vector3(

@@ -1,4 +1,4 @@
-﻿import * as THREE from 'three';
+import * as THREE from 'three';
 import { solveProcrustes } from './procrustesSolver';
 import { OneEuroFilter, OneEuroVector3Filter, OneEuroQuaternionFilter } from './landmarkSmoothing';
 
@@ -139,6 +139,12 @@ export class CanonicalTorsoAnchor {
 
     if (!this.isInitialized) {
       this.isInitialized = true;
+      this.posFilter.filter(result.translation, timestampMs);
+      this.rotFilter.filter(result.rotation, timestampMs);
+      this.scaleFilter.filter(result.scale, timestampMs);
+      this.group.position.copy(result.translation);
+      this.group.quaternion.copy(result.rotation);
+      this.group.scale.set(result.scale, result.scale, result.scale);
       this.group.matrix.copy(result.matrix);
       this.group.matrixWorldNeedsUpdate = true;
       return this.group.matrix;
@@ -149,7 +155,10 @@ export class CanonicalTorsoAnchor {
     const smoothRotation = this.rotFilter.filter(result.rotation, timestampMs);
     const smoothScale = this.scaleFilter.filter(result.scale, timestampMs);
 
-    // Reconstruct Final World Matrix
+    // Reconstruct Final World Matrix & keep position/quaternion/scale synchronized
+    this.group.position.copy(smoothTranslation);
+    this.group.quaternion.copy(smoothRotation);
+    this.group.scale.set(smoothScale, smoothScale, smoothScale);
     this.group.matrix.compose(
       smoothTranslation,
       smoothRotation,
