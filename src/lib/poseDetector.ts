@@ -321,28 +321,48 @@ export class PoseDetectionEngine {
     };
 
     const nose = p(0);
+    const leftEyeInner = p(1);
     const leftEye = p(2);
+    const leftEyeOuter = p(3);
+    const rightEyeInner = p(4);
     const rightEye = p(5);
+    const rightEyeOuter = p(6);
     const leftEar = p(7);
     const rightEar = p(8);
+    const mouthLeft = p(9);
+    const mouthRight = p(10);
     const leftShoulder = p(11);
     const rightShoulder = p(12);
     const leftElbow = p(13);
     const rightElbow = p(14);
     const leftWrist = p(15);
     const rightWrist = p(16);
+    const leftPinky = p(17);
+    const rightPinky = p(18);
+    const leftIndex = p(19);
+    const rightIndex = p(20);
+    const leftThumb = p(21);
+    const rightThumb = p(22);
     const leftHip = p(23);
     const rightHip = p(24);
     const leftKnee = p(25);
     const rightKnee = p(26);
     const leftAnkle = p(27);
     const rightAnkle = p(28);
+    const leftHeel = p(29);
+    const rightHeel = p(30);
+    const leftFootIndex = p(31);
+    const rightFootIndex = p(32);
+
+    const allLandmarks: LandmarkPoint[] = [];
+    for (let i = 0; i <= 32; i++) {
+      allLandmarks.push(p(i));
+    }
 
     const shMidX = (leftShoulder.x + rightShoulder.x) / 2;
     const shMidY = (leftShoulder.y + rightShoulder.y) / 2;
     
-    // In human anatomy, the collar base (suprasternal notch) is elevated above the biacromial shoulder line
-    // towards the chin/nose. This prevents the garment collar from sagging below the neck onto the chest.
+    // Suprasternal notch elevation above biacromial shoulder line
     const neckLift = (nose.visibility && nose.visibility > 0.35 && nose.y < shMidY)
       ? (shMidY - nose.y) * 0.22
       : 0.035;
@@ -364,7 +384,15 @@ export class PoseDetectionEngine {
     const chestMid: LandmarkPoint = {
       x: neckBase.x * 0.65 + midHip.x * 0.35,
       y: neckBase.y * 0.65 + midHip.y * 0.35,
-      z: (neckBase.z || 0) * 0.65 + (midHip.z || 0) * 0.35
+      z: (neckBase.z || 0) * 0.65 + (midHip.z || 0) * 0.35,
+      visibility: Math.min(neckBase.visibility || 0.5, midHip.visibility || 0.5)
+    };
+
+    const spineMid: LandmarkPoint = {
+      x: neckBase.x * 0.35 + midHip.x * 0.65,
+      y: neckBase.y * 0.35 + midHip.y * 0.65,
+      z: (neckBase.z || 0) * 0.35 + (midHip.z || 0) * 0.65,
+      visibility: Math.min(neckBase.visibility || 0.5, midHip.visibility || 0.5)
     };
 
     const dx = rightShoulder.x - leftShoulder.x;
@@ -386,25 +414,43 @@ export class PoseDetectionEngine {
 
     return {
       nose,
+      leftEyeInner,
       leftEye,
+      leftEyeOuter,
+      rightEyeInner,
       rightEye,
+      rightEyeOuter,
       leftEar,
       rightEar,
+      mouthLeft,
+      mouthRight,
       leftShoulder,
       rightShoulder,
       leftElbow,
       rightElbow,
       leftWrist,
       rightWrist,
+      leftPinky,
+      rightPinky,
+      leftIndex,
+      rightIndex,
+      leftThumb,
+      rightThumb,
       leftHip,
       rightHip,
       leftKnee,
       rightKnee,
       leftAnkle,
       rightAnkle,
+      leftHeel,
+      rightHeel,
+      leftFootIndex,
+      rightFootIndex,
       neckBase,
       midHip,
       chestMid,
+      spineMid,
+      allLandmarks,
       shoulderWidthNorm,
       torsoHeightNorm,
       shoulderSlopeRad,

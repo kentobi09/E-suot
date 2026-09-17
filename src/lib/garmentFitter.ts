@@ -1,4 +1,4 @@
-import { PoseKeypoints, GarmentItem, FitEngineMode, GarmentRenderOptions } from './types';
+import { PoseKeypoints, GarmentItem, FitEngineMode, GarmentRenderOptions, LandmarkPoint } from './types';
 
 export type { GarmentRenderOptions };
 
@@ -308,49 +308,269 @@ export class GarmentFitter {
   }
 
   /**
-   * Minimalist, architectural landmark skeleton rendering (Bone-white #E2E8F0)
+   * Comprehensive Multi-Joint Skeletal Tracking Renderer
+   * Renders all 33 MediaPipe anatomical joints, connecting bones, and telemetry tags
+   * so the user can verify real-time body tracking precision on camera.
    */
   public renderLandmarkSkeleton(
     ctx: CanvasRenderingContext2D,
     w: number,
     h: number,
-    kp: PoseKeypoints
+    kp: PoseKeypoints,
+    options: { showLabels?: boolean; isProminent?: boolean } = { showLabels: true, isProminent: true }
   ) {
     ctx.save();
-    ctx.strokeStyle = 'rgba(226, 232, 240, 0.45)';
-    ctx.lineWidth = 1;
-    ctx.fillStyle = '#E2E8F0';
 
-    const p = (pt?: { x: number; y: number }) => ({
-      x: (pt?.x || 0) * w,
-      y: (pt?.y || 0) * h
-    });
+    const p = (pt?: LandmarkPoint) => {
+      if (!pt) return null;
+      const vis = pt.visibility !== undefined ? pt.visibility : 1.0;
+      if (vis < 0.20) return null;
+      return {
+        x: pt.x * w,
+        y: pt.y * h,
+        z: pt.z || 0,
+        vis
+      };
+    };
+
+    // Extract all anatomical landmark positions
+    const nose = p(kp.nose);
+    const leftEye = p(kp.leftEye);
+    const rightEye = p(kp.rightEye);
+    const leftEar = p(kp.leftEar);
+    const rightEar = p(kp.rightEar);
+    const mouthL = p(kp.mouthLeft);
+    const mouthR = p(kp.mouthRight);
+
+    const neck = p(kp.neckBase);
+    const chest = p(kp.chestMid);
+    const spine = p(kp.spineMid);
+    const midHip = p(kp.midHip);
 
     const ls = p(kp.leftShoulder);
     const rs = p(kp.rightShoulder);
+    const le = p(kp.leftElbow);
+    const re = p(kp.rightElbow);
+    const lw = p(kp.leftWrist);
+    const rw = p(kp.rightWrist);
+
+    const lp = p(kp.leftPinky);
+    const rp = p(kp.rightPinky);
+    const li = p(kp.leftIndex);
+    const ri = p(kp.rightIndex);
+    const lt = p(kp.leftThumb);
+    const rt = p(kp.rightThumb);
+
     const lh = p(kp.leftHip);
     const rh = p(kp.rightHip);
-    const neck = p(kp.neckBase);
-    const midHip = p(kp.midHip);
+    const lk = p(kp.leftKnee);
+    const rk = p(kp.rightKnee);
+    const la = p(kp.leftAnkle);
+    const ra = p(kp.rightAnkle);
+    const lheel = p(kp.leftHeel);
+    const rheel = p(kp.rightHeel);
+    const lfoot = p(kp.leftFootIndex);
+    const rfoot = p(kp.rightFootIndex);
 
-    // Bone-white hairline skeleton structure
-    ctx.beginPath();
-    // Shoulder bar
-    ctx.moveTo(ls.x, ls.y);
-    ctx.lineTo(rs.x, rs.y);
-    // Spine
-    ctx.moveTo(neck.x, neck.y);
-    ctx.lineTo(midHip.x, midHip.y);
-    // Pelvic bar
-    ctx.moveTo(lh.x, lh.y);
-    ctx.lineTo(rh.x, rh.y);
-    ctx.stroke();
+    // Anatomical bone connections [Joint A, Joint B, colorGroup]
+    type Bone = [
+      { x: number; y: number } | null,
+      { x: number; y: number } | null,
+      string
+    ];
 
-    // Keypoint dots (3px bone-white squares for high-fashion architectural precision)
-    const points = [ls, rs, lh, rh, neck, midHip];
-    points.forEach(pt => {
-      ctx.fillRect(pt.x - 2, pt.y - 2, 4, 4);
+    const bones: Bone[] = [
+      // Head & Facial contours
+      [leftEar, leftEye, 'rgba(56, 189, 248, 0.45)'],
+      [leftEye, nose, 'rgba(56, 189, 248, 0.55)'],
+      [nose, rightEye, 'rgba(56, 189, 248, 0.55)'],
+      [rightEye, rightEar, 'rgba(56, 189, 248, 0.45)'],
+      [mouthL, mouthR, 'rgba(56, 189, 248, 0.35)'],
+      [nose, neck, 'rgba(6, 182, 212, 0.55)'],
+
+      // Torso & Clavicles
+      [ls, neck, 'rgba(6, 182, 212, 0.75)'],
+      [neck, rs, 'rgba(6, 182, 212, 0.75)'],
+      [ls, rs, 'rgba(245, 245, 247, 0.35)'],
+      [neck, chest, 'rgba(6, 182, 212, 0.85)'],
+      [chest, spine, 'rgba(6, 182, 212, 0.85)'],
+      [spine, midHip, 'rgba(6, 182, 212, 0.85)'],
+      [chest, ls, 'rgba(6, 182, 212, 0.30)'],
+      [chest, rs, 'rgba(6, 182, 212, 0.30)'],
+      [ls, lh, 'rgba(14, 165, 233, 0.40)'],
+      [rs, rh, 'rgba(14, 165, 233, 0.40)'],
+      [lh, midHip, 'rgba(168, 85, 247, 0.75)'],
+      [midHip, rh, 'rgba(168, 85, 247, 0.75)'],
+
+      // Left Arm & Hand
+      [ls, le, 'rgba(16, 185, 129, 0.80)'],
+      [le, lw, 'rgba(16, 185, 129, 0.80)'],
+      [lw, lt, 'rgba(52, 211, 153, 0.60)'],
+      [lw, li, 'rgba(52, 211, 153, 0.60)'],
+      [lw, lp, 'rgba(52, 211, 153, 0.60)'],
+      [lp, li, 'rgba(52, 211, 153, 0.35)'],
+
+      // Right Arm & Hand
+      [rs, re, 'rgba(16, 185, 129, 0.80)'],
+      [re, rw, 'rgba(16, 185, 129, 0.80)'],
+      [rw, rt, 'rgba(52, 211, 153, 0.60)'],
+      [rw, ri, 'rgba(52, 211, 153, 0.60)'],
+      [rw, rp, 'rgba(52, 211, 153, 0.60)'],
+      [rp, ri, 'rgba(52, 211, 153, 0.35)'],
+
+      // Left Leg & Foot
+      [lh, lk, 'rgba(245, 158, 11, 0.75)'],
+      [lk, la, 'rgba(245, 158, 11, 0.75)'],
+      [la, lheel, 'rgba(251, 191, 36, 0.60)'],
+      [lheel, lfoot, 'rgba(251, 191, 36, 0.60)'],
+      [lfoot, la, 'rgba(251, 191, 36, 0.40)'],
+
+      // Right Leg & Foot
+      [rh, rk, 'rgba(245, 158, 11, 0.75)'],
+      [rk, ra, 'rgba(245, 158, 11, 0.75)'],
+      [ra, rheel, 'rgba(251, 191, 36, 0.60)'],
+      [rheel, rfoot, 'rgba(251, 191, 36, 0.60)'],
+      [rfoot, ra, 'rgba(251, 191, 36, 0.40)']
+    ];
+
+    // 1. Draw Bones (Outer Glow + Core Line)
+    bones.forEach(([ptA, ptB, strokeColor]) => {
+      if (!ptA || !ptB) return;
+      ctx.beginPath();
+      ctx.moveTo(ptA.x, ptA.y);
+      ctx.lineTo(ptB.x, ptB.y);
+
+      // Glow pass
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = options.isProminent ? 3.5 : 2;
+      ctx.stroke();
+
+      // Sharp core pass
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+      ctx.lineWidth = options.isProminent ? 1.5 : 1;
+      ctx.stroke();
     });
+
+    // 2. Draw All Joint Nodes
+    interface JointNode {
+      pt: { x: number; y: number; vis: number } | null;
+      label?: string;
+      color: string;
+      size: number;
+    }
+
+    const joints: JointNode[] = [
+      // Face
+      { pt: nose, color: '#38BDF8', size: 3.5, label: 'NOSE' },
+      { pt: leftEye, color: '#38BDF8', size: 2.5 },
+      { pt: rightEye, color: '#38BDF8', size: 2.5 },
+      { pt: leftEar, color: '#38BDF8', size: 2.5 },
+      { pt: rightEar, color: '#38BDF8', size: 2.5 },
+
+      // Central Torso Column
+      { pt: neck, color: '#06B6D4', size: 4.5, label: 'NECK' },
+      { pt: chest, color: '#06B6D4', size: 4.0, label: 'CHEST' },
+      { pt: spine, color: '#06B6D4', size: 3.5, label: 'SPINE' },
+      { pt: midHip, color: '#A855F7', size: 4.0, label: 'PELVIS' },
+
+      // Upper Limbs
+      { pt: ls, color: '#10B981', size: 4.5, label: 'L_SHOULDER' },
+      { pt: rs, color: '#10B981', size: 4.5, label: 'R_SHOULDER' },
+      { pt: le, color: '#10B981', size: 4.0, label: 'L_ELBOW' },
+      { pt: re, color: '#10B981', size: 4.0, label: 'R_ELBOW' },
+      { pt: lw, color: '#34D399', size: 4.5, label: 'L_WRIST' },
+      { pt: rw, color: '#34D399', size: 4.5, label: 'R_WRIST' },
+
+      // Hands
+      { pt: lt, color: '#6EE7B7', size: 2.5 },
+      { pt: li, color: '#6EE7B7', size: 2.5 },
+      { pt: lp, color: '#6EE7B7', size: 2.5 },
+      { pt: rt, color: '#6EE7B7', size: 2.5 },
+      { pt: ri, color: '#6EE7B7', size: 2.5 },
+      { pt: rp, color: '#6EE7B7', size: 2.5 },
+
+      // Lower Limbs
+      { pt: lh, color: '#A855F7', size: 4.0, label: 'L_HIP' },
+      { pt: rh, color: '#A855F7', size: 4.0, label: 'R_HIP' },
+      { pt: lk, color: '#F59E0B', size: 4.0, label: 'L_KNEE' },
+      { pt: rk, color: '#F59E0B', size: 4.0, label: 'R_KNEE' },
+      { pt: la, color: '#FBBF24', size: 4.0, label: 'L_ANKLE' },
+      { pt: ra, color: '#FBBF24', size: 4.0, label: 'R_ANKLE' },
+      { pt: lheel, color: '#FBBF24', size: 2.5 },
+      { pt: rheel, color: '#FBBF24', size: 2.5 },
+      { pt: lfoot, color: '#FBBF24', size: 3.0 },
+      { pt: rfoot, color: '#FBBF24', size: 3.0 }
+    ];
+
+    joints.forEach(({ pt, color, size, label }) => {
+      if (!pt) return;
+
+      // Outer glowing halo
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, size + 3, 0, Math.PI * 2);
+      ctx.fillStyle = `${color}33`; // 20% opacity
+      ctx.fill();
+
+      // Outer ring
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, size + 1.5, 0, Math.PI * 2);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+
+      // Solid central core node
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, size * 0.75, 0, Math.PI * 2);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fill();
+
+      // Small high-tech joint label
+      if (options.showLabels && label) {
+        ctx.font = '9px monospace';
+        const textW = ctx.measureText(label).width;
+        const tagX = pt.x + size + 4;
+        const tagY = pt.y - 3;
+
+        ctx.fillStyle = 'rgba(9, 10, 12, 0.85)';
+        ctx.fillRect(tagX - 2, tagY - 8, textW + 4, 11);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 0.8;
+        ctx.strokeRect(tagX - 2, tagY - 8, textW + 4, 11);
+
+        ctx.fillStyle = '#F5F5F7';
+        ctx.fillText(label, tagX, tagY);
+      }
+    });
+
+    // 3. Live HUD Tracking Header (Upper Left Corner)
+    if (options.isProminent) {
+      const hudX = 14;
+      const hudY = 18;
+      const hudW = 260;
+      const hudH = 50;
+
+      ctx.fillStyle = 'rgba(9, 10, 12, 0.88)';
+      ctx.fillRect(hudX, hudY, hudW, hudH);
+      ctx.strokeStyle = '#222530';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(hudX, hudY, hudW, hudH);
+
+      // Status indicator dot
+      ctx.beginPath();
+      ctx.arc(hudX + 12, hudY + 16, 4, 0, Math.PI * 2);
+      ctx.fillStyle = '#10B981';
+      ctx.fill();
+
+      ctx.fillStyle = '#F5F5F7';
+      ctx.font = 'bold 11px monospace';
+      ctx.fillText('BODY DETECTED // 33 JOINTS', hudX + 24, hudY + 20);
+
+      ctx.fillStyle = '#7E8294';
+      ctx.font = '10px monospace';
+      const confPct = Math.round(kp.confidence * 100);
+      const spanNorm = Math.round(kp.shoulderWidthNorm * 100);
+      ctx.fillText(`TRACKING: ${confPct}% • SHOULDER SPAN: ${spanNorm}%`, hudX + 24, hudY + 38);
+    }
 
     ctx.restore();
   }

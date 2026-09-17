@@ -29,21 +29,42 @@ function smoothPoseKeypoints(prev: PoseKeypoints, next: PoseKeypoints, alpha: nu
   return {
     ...next,
     nose: smoothOpt(prev.nose, next.nose),
+    leftEyeInner: smoothOpt(prev.leftEyeInner, next.leftEyeInner),
     leftEye: smoothOpt(prev.leftEye, next.leftEye),
+    leftEyeOuter: smoothOpt(prev.leftEyeOuter, next.leftEyeOuter),
+    rightEyeInner: smoothOpt(prev.rightEyeInner, next.rightEyeInner),
     rightEye: smoothOpt(prev.rightEye, next.rightEye),
+    rightEyeOuter: smoothOpt(prev.rightEyeOuter, next.rightEyeOuter),
     leftEar: smoothOpt(prev.leftEar, next.leftEar),
     rightEar: smoothOpt(prev.rightEar, next.rightEar),
+    mouthLeft: smoothOpt(prev.mouthLeft, next.mouthLeft),
+    mouthRight: smoothOpt(prev.mouthRight, next.mouthRight),
     leftShoulder: lerpPoint(prev.leftShoulder, next.leftShoulder, alpha),
     rightShoulder: lerpPoint(prev.rightShoulder, next.rightShoulder, alpha),
     leftElbow: smoothOpt(prev.leftElbow, next.leftElbow),
     rightElbow: smoothOpt(prev.rightElbow, next.rightElbow),
     leftWrist: smoothOpt(prev.leftWrist, next.leftWrist),
     rightWrist: smoothOpt(prev.rightWrist, next.rightWrist),
+    leftPinky: smoothOpt(prev.leftPinky, next.leftPinky),
+    rightPinky: smoothOpt(prev.rightPinky, next.rightPinky),
+    leftIndex: smoothOpt(prev.leftIndex, next.leftIndex),
+    rightIndex: smoothOpt(prev.rightIndex, next.rightIndex),
+    leftThumb: smoothOpt(prev.leftThumb, next.leftThumb),
+    rightThumb: smoothOpt(prev.rightThumb, next.rightThumb),
     leftHip: lerpPoint(prev.leftHip, next.leftHip, alpha),
     rightHip: lerpPoint(prev.rightHip, next.rightHip, alpha),
+    leftKnee: smoothOpt(prev.leftKnee, next.leftKnee),
+    rightKnee: smoothOpt(prev.rightKnee, next.rightKnee),
+    leftAnkle: smoothOpt(prev.leftAnkle, next.leftAnkle),
+    rightAnkle: smoothOpt(prev.rightAnkle, next.rightAnkle),
+    leftHeel: smoothOpt(prev.leftHeel, next.leftHeel),
+    rightHeel: smoothOpt(prev.rightHeel, next.rightHeel),
+    leftFootIndex: smoothOpt(prev.leftFootIndex, next.leftFootIndex),
+    rightFootIndex: smoothOpt(prev.rightFootIndex, next.rightFootIndex),
     neckBase: lerpPoint(prev.neckBase, next.neckBase, alpha),
     midHip: lerpPoint(prev.midHip, next.midHip, alpha),
     chestMid: lerpPoint(prev.chestMid, next.chestMid, alpha),
+    spineMid: smoothOpt(prev.spineMid, next.spineMid),
     shoulderWidthNorm: lerpVal(prev.shoulderWidthNorm, next.shoulderWidthNorm, alpha),
     torsoHeightNorm: lerpVal(prev.torsoHeightNorm, next.torsoHeightNorm, alpha),
     shoulderSlopeRad: lerpVal(prev.shoulderSlopeRad, next.shoulderSlopeRad, alpha),
@@ -73,6 +94,8 @@ interface CameraViewportProps {
   scanPhase: ScanPhase;
   onScanPhaseChange: (phase: ScanPhase) => void;
   onRescan: () => void;
+  displayMode?: 'tracking' | 'tryon';
+  onDisplayModeChange?: (mode: 'tracking' | 'tryon') => void;
   onFpsUpdate?: (fps: number) => void;
   onCameraStatusChange?: (active: boolean) => void;
 }
@@ -97,6 +120,8 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
   scanPhase,
   onScanPhaseChange,
   onRescan,
+  displayMode = 'tracking',
+  onDisplayModeChange,
   onFpsUpdate,
   onCameraStatusChange
 }) => {
@@ -337,25 +362,43 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
             const mirroredKeypoints: PoseKeypoints = {
               ...det.keypoints,
               nose: flip(det.keypoints.nose),
+              leftEyeInner: flip(det.keypoints.leftEyeInner),
               leftEye: flip(det.keypoints.leftEye),
+              leftEyeOuter: flip(det.keypoints.leftEyeOuter),
+              rightEyeInner: flip(det.keypoints.rightEyeInner),
               rightEye: flip(det.keypoints.rightEye),
+              rightEyeOuter: flip(det.keypoints.rightEyeOuter),
               leftEar: flip(det.keypoints.leftEar),
               rightEar: flip(det.keypoints.rightEar),
+              mouthLeft: flip(det.keypoints.mouthLeft),
+              mouthRight: flip(det.keypoints.mouthRight),
               leftShoulder: flip(det.keypoints.leftShoulder)!,
               rightShoulder: flip(det.keypoints.rightShoulder)!,
               leftElbow: flip(det.keypoints.leftElbow),
               rightElbow: flip(det.keypoints.rightElbow),
               leftWrist: flip(det.keypoints.leftWrist),
               rightWrist: flip(det.keypoints.rightWrist),
+              leftPinky: flip(det.keypoints.leftPinky),
+              rightPinky: flip(det.keypoints.rightPinky),
+              leftIndex: flip(det.keypoints.leftIndex),
+              rightIndex: flip(det.keypoints.rightIndex),
+              leftThumb: flip(det.keypoints.leftThumb),
+              rightThumb: flip(det.keypoints.rightThumb),
               leftHip: flip(det.keypoints.leftHip)!,
               rightHip: flip(det.keypoints.rightHip)!,
               leftKnee: flip(det.keypoints.leftKnee),
               rightKnee: flip(det.keypoints.rightKnee),
               leftAnkle: flip(det.keypoints.leftAnkle),
               rightAnkle: flip(det.keypoints.rightAnkle),
+              leftHeel: flip(det.keypoints.leftHeel),
+              rightHeel: flip(det.keypoints.rightHeel),
+              leftFootIndex: flip(det.keypoints.leftFootIndex),
+              rightFootIndex: flip(det.keypoints.rightFootIndex),
               neckBase: flip(det.keypoints.neckBase)!,
               midHip: flip(det.keypoints.midHip)!,
               chestMid: flip(det.keypoints.chestMid)!,
+              spineMid: flip(det.keypoints.spineMid),
+              allLandmarks: det.keypoints.allLandmarks?.map(pt => flip(pt)!),
               shoulderSlopeRad: -det.keypoints.shoulderSlopeRad,
               bodyRotationY: -det.keypoints.bodyRotationY
             };
@@ -498,12 +541,21 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
       const activeKeypoints = persistentKeypointsRef.current;
 
       // =========================================================
-      // 3. Phase 1 vs Phase 2 Logic
+      // 3. Display Mode Logic (Body & Joint Tracking vs Try-On)
       // =========================================================
       if (activeKeypoints) {
         lastKeypointsRef.current = activeKeypoints;
 
-        if (scanPhase === 'scanning') {
+        if (displayMode === 'tracking') {
+          // =======================================================
+          // PRIMARY MODE: BODY & JOINT TRACKING (ALL 33 POINTS)
+          // Follows the real body on camera with full bone connections & labels
+          // =======================================================
+          garmentFitter.renderLandmarkSkeleton(ctx, cw, ch, activeKeypoints, {
+            showLabels: true,
+            isProminent: true
+          });
+        } else if (scanPhase === 'scanning') {
           // =======================================================
           // PHASE 1: BODY SCAN IN PROGRESS (Do NOT put clothes yet!)
           // =======================================================
@@ -693,7 +745,10 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
 
             // Skeletal landmarks toggle overlay
             if (showLandmarks) {
-              garmentFitter.renderLandmarkSkeleton(ctx, cw, ch, activeKeypoints);
+              garmentFitter.renderLandmarkSkeleton(ctx, cw, ch, activeKeypoints, {
+                showLabels: false,
+                isProminent: false
+              });
             }
           }
         }
@@ -722,6 +777,7 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
     wireframeOnly,
     fitEngine,
     showLandmarks,
+    displayMode,
     scanPhase,
     onDimensionsUpdate,
     onScanPhaseChange
@@ -747,6 +803,33 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
 
   return (
     <div className="relative w-full h-full bg-[#090A0C] flex items-center justify-center overflow-hidden">
+      {/* Floating Mode Switcher: Body & Joints Tracking vs Try-On Clothes */}
+      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center bg-[#131418]/95 border border-[#222530] rounded-full p-1 shadow-2xl backdrop-blur-md gap-1">
+        <button
+          onClick={() => onDisplayModeChange?.('tracking')}
+          className={`flex items-center gap-1.5 px-3 py-1 text-[11px] font-mono rounded-full transition-all cursor-pointer ${
+            displayMode === 'tracking'
+              ? 'bg-[#10B981] text-black font-bold shadow'
+              : 'text-[#7E8294] hover:text-[#F5F5F7]'
+          }`}
+          title="Detect body first and show all 33 anatomical joints tracking in real time"
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+          <span>Body & Joints (33 Points)</span>
+        </button>
+        <button
+          onClick={() => onDisplayModeChange?.('tryon')}
+          className={`flex items-center gap-1.5 px-3 py-1 text-[11px] font-mono rounded-full transition-all cursor-pointer ${
+            displayMode === 'tryon'
+              ? 'bg-[#F5F5F7] text-black font-bold shadow'
+              : 'text-[#7E8294] hover:text-[#F5F5F7]'
+          }`}
+          title="Fit virtual clothing on the tracked body"
+        >
+          <span>Try-On Clothes</span>
+        </button>
+      </div>
+
       {/* Hidden processing video element */}
       <video
         ref={videoRef}

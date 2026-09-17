@@ -125,14 +125,15 @@ export const ControlToolbar: React.FC<ControlToolbarProps> = ({
         {/* Landmarks / Skeleton Toggle */}
         <button
           onClick={onToggleLandmarks}
-          title="Toggle Skeletal Keypoints"
-          className={`p-1.5 rounded transition-colors cursor-pointer shrink-0 ${
+          title="Toggle Skeletal Keypoints & Joint Nodes"
+          className={`flex items-center gap-1 px-2 py-1 text-[10px] font-mono rounded border transition-colors cursor-pointer shrink-0 ${
             showLandmarks
-              ? 'text-[#F5F5F7] bg-[#1A1C23]'
-              : 'text-[#7E8294] hover:text-[#F5F5F7]'
+              ? 'bg-[#10B981]/15 text-[#10B981] border-[#10B981]/40 font-semibold'
+              : 'border-transparent text-[#7E8294] hover:text-[#F5F5F7]'
           }`}
         >
           <Activity className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Joints</span>
         </button>
 
         <div className="w-[1px] h-4 bg-[#222530] shrink-0" />

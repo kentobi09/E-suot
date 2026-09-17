@@ -35,7 +35,8 @@ export function App() {
   const [opacity, setOpacity] = useState<number>(0.92);
   const [wireframeOnly, setWireframeOnly] = useState<boolean>(false);
   const [fitEngine, setFitEngine] = useState<FitEngineMode>('mesh');
-  const [showLandmarks, setShowLandmarks] = useState<boolean>(false);
+  const [showLandmarks, setShowLandmarks] = useState<boolean>(true);
+  const [displayMode, setDisplayMode] = useState<'tracking' | 'tryon'>('tracking');
   const [unit, setUnit] = useState<'metric' | 'imperial'>('metric');
   const [silhouettePreference, setSilhouettePreference] = useState<SilhouettePreference>('regular');
 
@@ -264,6 +265,8 @@ export function App() {
           scanPhase={scanPhase}
           onScanPhaseChange={setScanPhase}
           onRescan={handleRescan}
+          displayMode={displayMode}
+          onDisplayModeChange={setDisplayMode}
           onFpsUpdate={setFps}
           onCameraStatusChange={setCameraActive}
         />

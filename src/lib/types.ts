@@ -7,27 +7,47 @@ export interface LandmarkPoint {
 
 export interface PoseKeypoints {
   nose?: LandmarkPoint;
+  leftEyeInner?: LandmarkPoint;
   leftEye?: LandmarkPoint;
+  leftEyeOuter?: LandmarkPoint;
+  rightEyeInner?: LandmarkPoint;
   rightEye?: LandmarkPoint;
+  rightEyeOuter?: LandmarkPoint;
   leftEar?: LandmarkPoint;
   rightEar?: LandmarkPoint;
+  mouthLeft?: LandmarkPoint;
+  mouthRight?: LandmarkPoint;
   leftShoulder: LandmarkPoint;
   rightShoulder: LandmarkPoint;
   leftElbow?: LandmarkPoint;
   rightElbow?: LandmarkPoint;
   leftWrist?: LandmarkPoint;
   rightWrist?: LandmarkPoint;
+  leftPinky?: LandmarkPoint;
+  rightPinky?: LandmarkPoint;
+  leftIndex?: LandmarkPoint;
+  rightIndex?: LandmarkPoint;
+  leftThumb?: LandmarkPoint;
+  rightThumb?: LandmarkPoint;
   leftHip: LandmarkPoint;
   rightHip: LandmarkPoint;
   leftKnee?: LandmarkPoint;
   rightKnee?: LandmarkPoint;
   leftAnkle?: LandmarkPoint;
   rightAnkle?: LandmarkPoint;
+  leftHeel?: LandmarkPoint;
+  rightHeel?: LandmarkPoint;
+  leftFootIndex?: LandmarkPoint;
+  rightFootIndex?: LandmarkPoint;
   
   // Computed body landmarks
   neckBase: LandmarkPoint;
   midHip: LandmarkPoint;
   chestMid: LandmarkPoint;
+  spineMid?: LandmarkPoint;
+
+  // Complete array of all 33 detected landmarks in standard MediaPipe ordering
+  allLandmarks?: LandmarkPoint[];
   
   // Geometric metrics in normalized [0, 1] screen space
   shoulderWidthNorm: number;
