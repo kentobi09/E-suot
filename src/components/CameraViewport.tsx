@@ -520,29 +520,29 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
           const leftX = (minShX - 0.08) * cw;
           const rightX = (maxShX + 0.08) * cw;
 
-          // Glowing laser sweep line
-          ctx.strokeStyle = '#10B981';
-          ctx.lineWidth = 1.5;
-          ctx.shadowColor = '#10B981';
-          ctx.shadowBlur = 10;
+          // Hairline sweep scan line (utilitarian monochrome)
+          ctx.strokeStyle = 'rgba(245, 245, 247, 0.45)';
+          ctx.lineWidth = 1;
+          ctx.shadowColor = 'transparent';
+          ctx.shadowBlur = 0;
           ctx.beginPath();
           ctx.moveTo(leftX, scanY);
           ctx.lineTo(rightX, scanY);
           ctx.stroke();
 
-          // Laser sweep endpoints
-          ctx.fillStyle = '#10B981';
+          // Scan line micro endpoints
+          ctx.fillStyle = '#F5F5F7';
           ctx.beginPath();
-          ctx.arc(leftX, scanY, 3, 0, Math.PI * 2);
-          ctx.arc(rightX, scanY, 3, 0, Math.PI * 2);
+          ctx.arc(leftX, scanY, 2, 0, Math.PI * 2);
+          ctx.arc(rightX, scanY, 2, 0, Math.PI * 2);
           ctx.fill();
           ctx.restore();
 
           // B. High-Precision Skeletal Telemetry Lines
           ctx.save();
-          ctx.strokeStyle = 'rgba(245, 245, 247, 0.6)';
+          ctx.strokeStyle = 'rgba(245, 245, 247, 0.4)';
           ctx.lineWidth = 1;
-          ctx.setLineDash([4, 4]);
+          ctx.setLineDash([3, 3]);
 
           // Shoulder biacromial line
           const lsX = activeKeypoints.leftShoulder.x * cw;
@@ -561,7 +561,7 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
           ctx.lineTo(activeKeypoints.midHip.x * cw, activeKeypoints.midHip.y * ch);
           ctx.stroke();
 
-          // Nodes at key anatomical landmarks
+          // Nodes at key anatomical landmarks (minimalist bone-white dots)
           ctx.setLineDash([]);
           [
             activeKeypoints.leftShoulder,
@@ -571,11 +571,11 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
             activeKeypoints.leftHip,
             activeKeypoints.rightHip
           ].forEach((pt) => {
-            ctx.fillStyle = '#10B981';
+            ctx.fillStyle = '#F5F5F7';
             ctx.beginPath();
-            ctx.arc(pt.x * cw, pt.y * ch, 3.5, 0, Math.PI * 2);
+            ctx.arc(pt.x * cw, pt.y * ch, 2.5, 0, Math.PI * 2);
             ctx.fill();
-            ctx.strokeStyle = '#0A0A0C';
+            ctx.strokeStyle = '#090A0C';
             ctx.lineWidth = 1;
             ctx.stroke();
           });
@@ -583,9 +583,9 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
           // Shoulder Dimension Label
           const midShX = (lsX + rsX) / 2;
           const midShY = Math.min(lsY, rsY) - 14;
-          ctx.fillStyle = 'rgba(19, 20, 24, 0.85)';
+          ctx.fillStyle = 'rgba(9, 10, 12, 0.85)';
           ctx.fillRect(midShX - 45, midShY - 10, 90, 18);
-          ctx.strokeStyle = '#222530';
+          ctx.strokeStyle = '#1E2028';
           ctx.strokeRect(midShX - 45, midShY - 10, 90, 18);
           ctx.fillStyle = '#F5F5F7';
           ctx.font = '10px monospace';
@@ -746,7 +746,7 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
   }, [snapshotTrigger, currentGarment, selectedSize, fitEngine, onSnapshotCaptured]);
 
   return (
-    <div className="relative w-full h-full bg-[#0A0A0C] flex items-center justify-center overflow-hidden">
+    <div className="relative w-full h-full bg-[#090A0C] flex items-center justify-center overflow-hidden">
       {/* Hidden processing video element */}
       <video
         ref={videoRef}
